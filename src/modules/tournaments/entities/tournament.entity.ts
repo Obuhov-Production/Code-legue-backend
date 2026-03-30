@@ -11,6 +11,7 @@ import {
 import {TournamentStatus} from "../enums/TournamentStatus.enum";
 import {User} from "../../users/entities/user.entity";
 import {Team} from "../../teams/entities/team.entity";
+import {TeamMember} from "../../team-members/entities/team-member.entity";
 
 @Entity('tournaments')
 @Check(`"rounds_count" >= 1`)
@@ -74,4 +75,7 @@ export class Tournament {
 
     @OneToMany(() => Team, (team) => team.tournament)
     teams: Team[];
+
+    @OneToMany(() => TeamMember, (member) => member.tournament)
+    members: TeamMember[];
 }

@@ -25,16 +25,16 @@ export class User {
     role: UserRole;
 
     @Column({ type: 'text', nullable: true })
-    user_description: string | null;
+    user_description: string;
 
     @Column({ nullable: true })
-    user_avatar_url: string | null;
+    user_avatar_url: string;
 
     @Column({ nullable: true })
-    banner_color: string | null;
+    banner_color: string;
 
     @Column({ nullable: true })
-    banner_url: string | null;
+    banner_url: string;
 
     @Column({ default: false })
     is_chat_muted: boolean;

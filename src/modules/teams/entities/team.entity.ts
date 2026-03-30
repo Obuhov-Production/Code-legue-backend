@@ -1,6 +1,16 @@
-import {Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique} from "typeorm";
+import {
+    Column,
+    CreateDateColumn,
+    Entity,
+    JoinColumn,
+    ManyToOne,
+    OneToMany,
+    PrimaryGeneratedColumn,
+    Unique
+} from "typeorm";
 import {Tournament} from "../../tournaments/entities/tournament.entity";
 import {User} from "../../users/entities/user.entity";
+import {TeamMember} from "../../team-members/entities/team-member.entity";
 
 @Entity('teams')
 @Unique(['name', 'tournament_id', 'captain_id'])
@@ -21,6 +31,9 @@ export class Team {
     @ManyToOne(() => User, { onDelete: 'SET NULL' })
     @JoinColumn({ name: 'captain_id' })
     captain: User;
+
+    @OneToMany(() => TeamMember, (member) => member.team)
+    members: TeamMember[];
 
     @Column({ type: 'int', nullable: true })
     captain_id: number | null;
