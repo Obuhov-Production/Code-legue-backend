@@ -15,6 +15,8 @@ const TournamentStatus_enum_1 = require("../enums/TournamentStatus.enum");
 const user_entity_1 = require("../../users/entities/user.entity");
 const team_entity_1 = require("../../teams/entities/team.entity");
 const team_member_entity_1 = require("../../team-members/entities/team-member.entity");
+const round_entity_1 = require("../../rounds/entities/round.entity");
+const announcement_entity_1 = require("../../announcements/entities/announcement.entity");
 let Tournament = class Tournament {
     id;
     name;
@@ -31,9 +33,11 @@ let Tournament = class Tournament {
     max_team_size;
     created_by;
     created_by_id;
+    announcements;
     created_at;
     teams;
     members;
+    rounds;
 };
 exports.Tournament = Tournament;
 __decorate([
@@ -99,8 +103,12 @@ __decorate([
 ], Tournament.prototype, "created_by", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', nullable: true }),
-    __metadata("design:type", Object)
+    __metadata("design:type", Number)
 ], Tournament.prototype, "created_by_id", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => announcement_entity_1.Announcement, (announcement) => announcement.tournament),
+    __metadata("design:type", Array)
+], Tournament.prototype, "announcements", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)
@@ -113,6 +121,10 @@ __decorate([
     (0, typeorm_1.OneToMany)(() => team_member_entity_1.TeamMember, (member) => member.tournament),
     __metadata("design:type", Array)
 ], Tournament.prototype, "members", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => round_entity_1.Round, (round) => round.tournament),
+    __metadata("design:type", Array)
+], Tournament.prototype, "rounds", void 0);
 exports.Tournament = Tournament = __decorate([
     (0, typeorm_1.Entity)('tournaments'),
     (0, typeorm_1.Check)(`"rounds_count" >= 1`),

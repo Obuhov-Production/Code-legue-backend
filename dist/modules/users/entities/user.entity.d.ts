@@ -1,6 +1,12 @@
 import { UserRole } from "../enums/UserRole.enum";
 import { Tournament } from "../../tournaments/entities/tournament.entity";
 import { Team } from "../../teams/entities/team.entity";
+import { JuryAssignment } from "../../jury-assignments/entities/jury-assignment.entity";
+import { Evaluation } from "../../evaluation/entities/evaluation.entity";
+import { ChatReaction } from "../../chat-reactions/entities/chat-reaction.entity";
+import { ChatRoom } from "../../chat-room/entities/chat-room.entity";
+import { ChatPinned } from "../../chat-pinned/entities/chat-pinned.entity";
+import { Message } from "../../chat-messages/entities/chat-message.entity";
 export declare class User {
     id: number;
     username: string;
@@ -16,4 +22,10 @@ export declare class User {
     username_updated_at: Date;
     tournaments: Tournament[];
     captained_teams: Team[];
+    juryAssignments: JuryAssignment[];
+    evaluations: Evaluation[];
+    createdRooms: ChatRoom[];
+    chatReactions: ChatReaction[];
+    pinnedMessages: ChatPinned[];
+    messages: Message[];
 }

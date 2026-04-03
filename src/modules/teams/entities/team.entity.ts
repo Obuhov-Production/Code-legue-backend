@@ -11,6 +11,7 @@ import {
 import {Tournament} from "../../tournaments/entities/tournament.entity";
 import {User} from "../../users/entities/user.entity";
 import {TeamMember} from "../../team-members/entities/team-member.entity";
+import {Submission} from "../../submissions/entities/submission.entity";
 
 @Entity('teams')
 @Unique(['name', 'tournament_id', 'captain_id'])
@@ -34,6 +35,9 @@ export class Team {
 
     @OneToMany(() => TeamMember, (member) => member.team)
     members: TeamMember[];
+
+    @OneToMany(() => Submission, (submission) => submission.team)
+    submissions: Submission[];
 
     @Column({ type: 'int', nullable: true })
     captain_id: number | null;

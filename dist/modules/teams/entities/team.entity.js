@@ -14,6 +14,7 @@ const typeorm_1 = require("typeorm");
 const tournament_entity_1 = require("../../tournaments/entities/tournament.entity");
 const user_entity_1 = require("../../users/entities/user.entity");
 const team_member_entity_1 = require("../../team-members/entities/team-member.entity");
+const submission_entity_1 = require("../../submissions/entities/submission.entity");
 let Team = class Team {
     id;
     name;
@@ -21,6 +22,7 @@ let Team = class Team {
     tournament_id;
     captain;
     members;
+    submissions;
     captain_id;
     city;
     school;
@@ -55,6 +57,10 @@ __decorate([
     (0, typeorm_1.OneToMany)(() => team_member_entity_1.TeamMember, (member) => member.team),
     __metadata("design:type", Array)
 ], Team.prototype, "members", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => submission_entity_1.Submission, (submission) => submission.team),
+    __metadata("design:type", Array)
+], Team.prototype, "submissions", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', nullable: true }),
     __metadata("design:type", Object)

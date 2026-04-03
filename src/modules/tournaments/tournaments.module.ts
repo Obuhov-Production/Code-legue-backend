@@ -5,9 +5,11 @@ import {TypeOrmModule} from "@nestjs/typeorm";
 import {Tournament} from "./entities/tournament.entity";
 import {Team} from "../teams/entities/team.entity";
 import {TeamMember} from "../team-members/entities/team-member.entity";
+import {Round} from "../rounds/entities/round.entity";
+import {User} from "../users/entities/user.entity";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ Tournament, Team, TeamMember])],
+  imports: [TypeOrmModule.forFeature([ Tournament ])],
   controllers: [TournamentsController],
   providers: [TournamentsService],
 })

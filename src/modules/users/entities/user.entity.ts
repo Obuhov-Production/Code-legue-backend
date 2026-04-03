@@ -2,6 +2,12 @@ import {Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, Upd
 import {UserRole} from "../enums/UserRole.enum";
 import {Tournament} from "../../tournaments/entities/tournament.entity";
 import {Team} from "../../teams/entities/team.entity";
+import {JuryAssignment} from "../../jury-assignments/entities/jury-assignment.entity";
+import {Evaluation} from "../../evaluation/entities/evaluation.entity";
+import {ChatReaction} from "../../chat-reactions/entities/chat-reaction.entity";
+import {ChatRoom} from "../../chat-room/entities/chat-room.entity";
+import {ChatPinned} from "../../chat-pinned/entities/chat-pinned.entity";
+import {Message} from "../../chat-messages/entities/chat-message.entity";
 
 @Entity('users')
 export class User {
@@ -50,4 +56,22 @@ export class User {
 
     @OneToMany(() => Team, (team) => team.captain)
     captained_teams: Team[];
+
+    @OneToMany(() => JuryAssignment, (ja) => ja.jury)
+    juryAssignments: JuryAssignment[];
+
+    @OneToMany(() => Evaluation, (evaluation) => evaluation.jury)
+    evaluations: Evaluation[];
+
+    @OneToMany(() => ChatRoom, (room) => room.creator)
+    createdRooms: ChatRoom[];
+
+    @OneToMany(() => ChatReaction, (reaction) => reaction.user)
+    chatReactions: ChatReaction[];
+
+    @OneToMany(() => ChatPinned, (pin) => pin.user)
+    pinnedMessages: ChatPinned[];
+
+    @OneToMany(() => Message, (message) => message.user)
+    messages: Message[];
 }

@@ -12,6 +12,8 @@ import {TournamentStatus} from "../enums/TournamentStatus.enum";
 import {User} from "../../users/entities/user.entity";
 import {Team} from "../../teams/entities/team.entity";
 import {TeamMember} from "../../team-members/entities/team-member.entity";
+import {Round} from "../../rounds/entities/round.entity";
+import {Announcement} from "../../announcements/entities/announcement.entity";
 
 @Entity('tournaments')
 @Check(`"rounds_count" >= 1`)
@@ -68,7 +70,10 @@ export class Tournament {
     created_by: User;
 
     @Column({ type: 'int', nullable: true })
-    created_by_id: number | null;
+    created_by_id: number ;
+
+    @OneToMany(() => Announcement, (announcement) => announcement.tournament)
+    announcements: Announcement[];
 
     @CreateDateColumn()
     created_at: Date;
@@ -78,4 +83,7 @@ export class Tournament {
 
     @OneToMany(() => TeamMember, (member) => member.tournament)
     members: TeamMember[];
+
+    @OneToMany(() => Round, (round) => round.tournament)
+    rounds: Round[];
 }
