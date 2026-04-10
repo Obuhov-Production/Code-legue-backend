@@ -19,11 +19,12 @@ import { ChatReactionsModule } from './modules/chat-reactions/chat-reactions.mod
 import { ChatPinnedModule } from './modules/chat-pinned/chat-pinned.module';
 import { ChatMessagesModule } from './modules/chat-messages/chat-messages.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 
 
 @Module({
-  imports: [UsersModule, TournamentsModule,DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule],
+  imports: [UsersModule, TournamentsModule,DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule],
   controllers: [AppController],
   providers: [AppService],
 })
