@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateTournamentDto = void 0;
-class CreateTournamentDto {
+exports.UpdateTournamentDto = void 0;
+class UpdateTournamentDto {
     name;
     description;
     rules;
@@ -13,7 +13,6 @@ class CreateTournamentDto {
     rounds_count;
     min_team_size;
     max_team_size;
-    created_by_id;
 }
-exports.CreateTournamentDto = CreateTournamentDto;
-//# sourceMappingURL=create-tournament.dto.js.map
+exports.UpdateTournamentDto = UpdateTournamentDto;
+//# sourceMappingURL=update-tournament.dto.js.map
