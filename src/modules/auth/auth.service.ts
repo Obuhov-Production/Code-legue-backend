@@ -5,6 +5,8 @@ import {InjectRepository} from "@nestjs/typeorm";
 import * as bcrypt from 'bcrypt';
 import {CreateUserDto} from "./dto/create-user.dto";
 import {LoginUserDto} from "./dto/login-user.dto";
+import {JwtService} from "@nestjs/jwt";
+import {ConfigService} from "@nestjs/config";
 
 
 
@@ -12,6 +14,8 @@ import {LoginUserDto} from "./dto/login-user.dto";
 export class AuthService {
   constructor(
       @InjectRepository(User) private authRepository: Repository<User>,
+      private jwtService: JwtService,
+      private configService: ConfigService,
   ) {}
 
 
@@ -34,9 +38,24 @@ export class AuthService {
 
     const savedUser = await this.authRepository.save(user);
 
+    const payload = { userId: savedUser.id, username: savedUser.username, email: savedUser.email };
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '2h',
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: '7d',
+    });
+
     const { password, ...userData } = savedUser;
 
-    return userData;
+    return {
+      user: userData,
+      accessToken,
+      refreshToken,
+    };
   }
 
   async login(dto: LoginUserDto) {
@@ -54,8 +73,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    const payload = { userId: user.id, username: user.username, email: user.email };
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '2h',
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: '7d',
+    });
+
     const { password, ...userData } = user;
-    return userData;
+    return { user: userData, accessToken, refreshToken };
   }
 
 }
