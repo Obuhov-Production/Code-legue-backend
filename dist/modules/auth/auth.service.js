@@ -51,10 +51,16 @@ const user_entity_1 = require("../users/entities/user.entity");
 const typeorm_1 = require("typeorm");
 const typeorm_2 = require("@nestjs/typeorm");
 const bcrypt = __importStar(require("bcrypt"));
+const jwt_1 = require("@nestjs/jwt");
+const config_1 = require("@nestjs/config");
 let AuthService = class AuthService {
     authRepository;
-    constructor(authRepository) {
+    jwtService;
+    configService;
+    constructor(authRepository, jwtService, configService) {
         this.authRepository = authRepository;
+        this.jwtService = jwtService;
+        this.configService = configService;
     }
     async create(dto) {
         const existingUser = await this.authRepository.findOne({
@@ -70,8 +76,21 @@ let AuthService = class AuthService {
             password: hashedPassword,
         });
         const savedUser = await this.authRepository.save(user);
+        const payload = { userId: savedUser.id, username: savedUser.username, email: savedUser.email };
+        const accessToken = this.jwtService.sign(payload, {
+            secret: this.configService.get('JWT_SECRET'),
+            expiresIn: '2h',
+        });
+        const refreshToken = this.jwtService.sign(payload, {
+            secret: this.configService.get('JWT_REFRESH_SECRET'),
+            expiresIn: '7d',
+        });
         const { password, ...userData } = savedUser;
-        return userData;
+        return {
+            user: userData,
+            accessToken,
+            refreshToken,
+        };
     }
     async login(dto) {
         const user = await this.authRepository.findOne({
@@ -85,14 +104,25 @@ let AuthService = class AuthService {
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
+        const payload = { userId: user.id, username: user.username, email: user.email };
+        const accessToken = this.jwtService.sign(payload, {
+            secret: this.configService.get('JWT_SECRET'),
+            expiresIn: '2h',
+        });
+        const refreshToken = this.jwtService.sign(payload, {
+            secret: this.configService.get('JWT_REFRESH_SECRET'),
+            expiresIn: '7d',
+        });
         const { password, ...userData } = user;
-        return userData;
+        return { user: userData, accessToken, refreshToken };
     }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_2.InjectRepository)(user_entity_1.User)),
-    __metadata("design:paramtypes", [typeorm_1.Repository])
+    __metadata("design:paramtypes", [typeorm_1.Repository,
+        jwt_1.JwtService,
+        config_1.ConfigService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map
