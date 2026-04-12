@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ChatReactionsService } from './chat-reactions.service';
-import { CreateChatReactionDto } from './dto/create-chat-reaction.dto';
 
-@Controller('chat-reactions')
+@Controller('chat')
 export class ChatReactionsController {
-  constructor(private readonly chatReactionsService: ChatReactionsService) {}
+    constructor(private readonly chatReactionsService: ChatReactionsService) {}
 
+    @Get(':room/reactions')
+    getReactions(@Param('room') room: string) {
+        return this.chatReactionsService.findByRoom(room);
+    }
 }

@@ -45,6 +45,6 @@ export class Evaluation {
     @Column('int')
     total_score: number;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
 }

@@ -1,26 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { CreateChatMessageDto } from './dto/create-chat-message.dto';
-import { UpdateChatMessageDto } from './dto/update-chat-message.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Message } from './entities/chat-message.entity';
 
 @Injectable()
 export class ChatMessagesService {
-  create(createChatMessageDto: CreateChatMessageDto) {
-    return 'This action adds a new chatMessage';
-  }
+    constructor(
+        @InjectRepository(Message) private readonly messageRepo: Repository<Message>,
+    ) {}
 
-  findAll() {
-    return `This action returns all chatMessages`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} chatMessage`;
-  }
-
-  update(id: number, updateChatMessageDto: UpdateChatMessageDto) {
-    return `This action updates a #${id} chatMessage`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} chatMessage`;
-  }
+    async findByRoom(room: string): Promise<Message[]> {
+        return this.messageRepo.find({
+            where: { room },
+            relations: ['user'],
+            order: { created_at: 'ASC' },
+        });
+    }
 }

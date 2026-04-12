@@ -24,7 +24,7 @@ export class User {
     password: string;
 
     @Column({
-        type: 'enum',
+        type: 'simple-enum',
         enum: UserRole,
         default: UserRole.USER,
     })
@@ -44,6 +44,12 @@ export class User {
 
     @Column({ default: false })
     is_chat_muted: boolean;
+
+    @Column({ nullable: true })
+    googleId: string;
+
+    @Column({ nullable: true })
+    discordId: string;
 
     @CreateDateColumn()
     created_at: Date;

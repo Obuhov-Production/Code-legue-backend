@@ -20,11 +20,14 @@ import { ChatPinnedModule } from './modules/chat-pinned/chat-pinned.module';
 import { ChatMessagesModule } from './modules/chat-messages/chat-messages.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SeedModule } from './common/seed/seed.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { JuryModule } from './modules/jury/jury.module';
 
 
 
 @Module({
-  imports: [UsersModule, TournamentsModule,DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule],
+  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule],
   controllers: [AppController],
   providers: [AppService],
 })

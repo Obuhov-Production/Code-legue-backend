@@ -35,22 +35,22 @@ export class Tournament {
     rules: string | null;
 
     @Column({
-        type: 'enum',
+        type: 'simple-enum',
         enum: TournamentStatus,
         default: TournamentStatus.DRAFT,
     })
     status: TournamentStatus;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'datetime' })
     start_date: Date;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'datetime' })
     end_date: Date;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'datetime' })
     registration_start: Date;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'datetime' })
     registration_end: Date;
 
     @Column({ type: 'int', nullable: true })

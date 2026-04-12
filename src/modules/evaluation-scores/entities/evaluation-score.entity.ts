@@ -37,6 +37,6 @@ export class EvaluationScore {
     @Column('decimal', { precision: 5, scale: 2 })
     score: number;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
 }

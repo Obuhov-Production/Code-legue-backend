@@ -28,6 +28,6 @@ export class Announcement {
     @Column('text')
     message: string;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
 }

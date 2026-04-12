@@ -26,6 +26,6 @@ export class ChatRoomSettings {
     @Column({ type: 'varchar', length: 5, nullable: true })
     time_to: string | null;
 
-    @UpdateDateColumn({ type: 'timestamp' })
+    @UpdateDateColumn({ type: 'datetime' })
     updated_at: Date;
 }

@@ -39,7 +39,7 @@ export class Round {
     description: string;
 
     @Column({
-        type: 'enum',
+        type: 'simple-enum',
         enum: RoundStatus,
         default: RoundStatus.DRAFT,
     })
@@ -51,7 +51,7 @@ export class Round {
     @Column({ type: 'datetime' })
     end_date: Date;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
 
     @OneToMany(() => Submission, (submission) => submission.round)

@@ -38,6 +38,6 @@ export class ChatPinned {
     @JoinColumn({ name: 'pinned_by' })
     user: User;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     pinned_at: Date;
 }

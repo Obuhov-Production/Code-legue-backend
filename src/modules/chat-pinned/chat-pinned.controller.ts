@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ChatPinnedService } from './chat-pinned.service';
-import { CreateChatPinnedDto } from './dto/create-chat-pinned.dto';
 
-@Controller('chat-pinned')
+@Controller('chat')
 export class ChatPinnedController {
-  constructor(private readonly chatPinnedService: ChatPinnedService) {}
+    constructor(private readonly chatPinnedService: ChatPinnedService) {}
+
+    @Get(':room/pinned')
+    getPinned(@Param('room') room: string) {
+        return this.chatPinnedService.findByRoom(room);
+    }
 }

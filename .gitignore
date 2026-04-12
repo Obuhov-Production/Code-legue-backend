@@ -1,6 +1,8 @@
 # compiled output
 /node_modules
 /build
+/dist
+
 
 # Logs
 logs
@@ -35,8 +37,7 @@ package-lock.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
-.env
+# dotenv environment variable files (local overrides only)
 .env.development.local
 .env.test.local
 .env.production.local
@@ -45,6 +46,11 @@ package-lock.json
 # temp directory
 .temp
 .tmp
+
+# SQLite database files
+db/*.sqlite
+db/*.sqlite-shm
+db/*.sqlite-wal
 
 # Runtime data
 pids

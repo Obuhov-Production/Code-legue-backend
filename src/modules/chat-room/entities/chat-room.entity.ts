@@ -33,7 +33,7 @@ export class ChatRoom {
     @JoinColumn({ name: 'created_by' })
     creator: User;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
 
     @OneToOne(() => ChatRoomSettings, (settings) => settings.chatRoom)

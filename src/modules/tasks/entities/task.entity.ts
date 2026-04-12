@@ -29,6 +29,6 @@ export class Task {
     @Column('text', { nullable: true })
     additional_materials: string | null;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     created_date: Date;
 }

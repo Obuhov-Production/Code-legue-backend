@@ -55,7 +55,7 @@ export class Submission {
     description: string;
 
     @Column({
-        type: 'enum',
+        type: 'simple-enum',
         enum: SubmissionStatus,
         default: SubmissionStatus.DRAFT,
     })
@@ -64,6 +64,6 @@ export class Submission {
     @Column({ type: 'datetime', nullable: true })
     submitted_at: Date ;
 
-    @UpdateDateColumn({ type: 'timestamp', nullable: true })
+    @UpdateDateColumn({ type: 'datetime', nullable: true })
     updated_at: Date;
 }
