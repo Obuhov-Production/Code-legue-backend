@@ -25,8 +25,10 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
         done: Function,
     ): Promise<void> {
         const { id, username, email, avatar } = profile;
+        // animated avatars start with a_ — serve as .gif, others as .png
+        const ext = avatar?.startsWith('a_') ? 'gif' : 'png';
         const avatarUrl = avatar
-            ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
+            ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.${ext}?size=256`
             : undefined;
         try {
             const result = await this.authService.oauthLogin({

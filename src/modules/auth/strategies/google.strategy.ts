@@ -25,12 +25,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         done: VerifyCallback,
     ): Promise<void> {
         const { id, displayName, emails, photos } = profile;
+        // беремо фото в максимальній якості — прибираємо =s96-c і ставимо =s256-c
+        const rawPhoto: string | undefined = photos?.[0]?.value;
+        const avatarUrl = rawPhoto
+            ? rawPhoto.replace(/=s\d+-c$/, '=s256-c')
+            : undefined;
         try {
             const result = await this.authService.oauthLogin({
                 email: emails?.[0]?.value,
                 username: displayName || `google_${id}`,
                 googleId: id,
-                avatarUrl: photos?.[0]?.value,
+                avatarUrl,
             });
             done(null, result);
         } catch (err) {

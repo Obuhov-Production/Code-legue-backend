@@ -16,4 +16,9 @@ export class AdminController {
     getUsers() {
         return this.adminService.getUsers();
     }
+
+    @Get('chat/muted')
+    getMutedUsers() {
+        return this.adminService.getMutedUsers();
+    }
 }

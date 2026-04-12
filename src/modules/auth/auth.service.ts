@@ -103,8 +103,8 @@ export class AuthService {
             let changed = false;
             if (googleId && !user.googleId) { user.googleId = googleId; changed = true; }
             if (discordId && !user.discordId) { user.discordId = discordId; changed = true; }
-            // Оновлюємо аватар якщо змінився або ще не встановлено
-            if (avatarUrl && !user.user_avatar_url) { user.user_avatar_url = avatarUrl; changed = true; }
+            // Оновлюємо аватар при кожному логіні (завжди свіжий)
+            if (avatarUrl) { user.user_avatar_url = avatarUrl; changed = true; }
             if (changed) await this.authRepository.save(user);
         } else {
             // 3. Новий користувач — реєструємо автоматично

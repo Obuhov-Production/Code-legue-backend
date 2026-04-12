@@ -31,4 +31,11 @@ export class AdminService {
             order: { created_at: 'DESC' },
         });
     }
+
+    async getMutedUsers() {
+        return this.userRepo.find({
+            where: { is_chat_muted: true },
+            select: ['id', 'username', 'email', 'role'],
+        });
+    }
 }

@@ -52,6 +52,9 @@ db/*.sqlite
 db/*.sqlite-shm
 db/*.sqlite-wal
 
+# User uploaded files
+uploads/
+
 # Runtime data
 pids
 *.pid

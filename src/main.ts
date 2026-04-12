@@ -2,9 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { DebugLoggerInterceptor } from './common/interceptors/debug-logger.interceptor';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import * as path from 'path';
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     app.enableCors({
@@ -17,6 +19,11 @@ async function bootstrap() {
             { path: 'auth/google/callback', method: RequestMethod.GET },
             { path: 'auth/discord/callback', method: RequestMethod.GET },
         ],
+    });
+
+    // роздаємо статичні файли uploads
+    app.useStaticAssets(path.resolve(process.cwd(), 'uploads'), {
+        prefix: '/uploads',
     });
 
     if (process.env.DEBUG_MODE === 'true') {

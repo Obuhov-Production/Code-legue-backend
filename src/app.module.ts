@@ -23,11 +23,13 @@ import { AuthModule } from './modules/auth/auth.module';
 import { SeedModule } from './common/seed/seed.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { JuryModule } from './modules/jury/jury.module';
+import { UploadsModule } from './common/uploads/uploads.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 
 
 @Module({
-  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule],
+  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule, UploadsModule, ReviewsModule],
   controllers: [AppController],
   providers: [AppService],
 })
