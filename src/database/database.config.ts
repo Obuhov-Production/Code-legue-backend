@@ -1,16 +1,16 @@
 import { TypeOrmModuleAsyncOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import * as path from 'path';
 
 export const databaseConfig: TypeOrmModuleAsyncOptions = {
     imports: [ConfigModule],
     inject: [ConfigService],
     useFactory: (config: ConfigService) => ({
-        type: 'better-sqlite3',
-        database: path.resolve(
-            process.cwd(),
-            config.get<string>('DB_PATH') || 'db/code_league.sqlite',
-        ),
+        type: 'mysql',
+        host: config.get<string>('DB_HOST') || 'localhost',
+        port: config.get<number>('DB_PORT') || 3306,
+        username: config.get<string>('DB_USERNAME') || 'root',
+        password: config.get<string>('DB_PASSWORD') || 'password',
+        database: config.get<string>('DB_DATABASE') || 'code_league',
         autoLoadEntities: true,
         synchronize: true,
     }),

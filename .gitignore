@@ -47,10 +47,8 @@ package-lock.json
 .temp
 .tmp
 
-# SQLite database files
-db/*.sqlite
-db/*.sqlite-shm
-db/*.sqlite-wal
+# MySQL data (local dev)
+db/
 
 # User uploaded files
 uploads/
