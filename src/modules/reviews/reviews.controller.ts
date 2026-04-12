@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -9,8 +9,8 @@ export class ReviewsController {
     constructor(private readonly reviewsService: ReviewsService) {}
 
     @Get()
-    findAll() {
-        return this.reviewsService.findAll();
+    findAll(@Query('q') q?: string) {
+        return this.reviewsService.findAll(q);
     }
 
     @Post()

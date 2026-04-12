@@ -1,12 +1,13 @@
-import { IsEmail, IsInt, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsEmail, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateReviewDto {
     @IsString()
     @MaxLength(100)
     name: string;
 
+    @IsOptional()
     @IsEmail()
-    email: string;
+    email?: string;
 
     @IsInt()
     @Min(1)
@@ -16,5 +17,9 @@ export class CreateReviewDto {
     @IsString()
     @MinLength(3)
     @MaxLength(1000)
-    message: string;
+    text: string;
+
+    @IsOptional()
+    @IsString()
+    role?: string;
 }

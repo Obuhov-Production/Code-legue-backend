@@ -23,7 +23,7 @@ export class Review {
     rating: number;
 
     @Column({ type: 'text' })
-    message: string;
+    text: string;
 
     @CreateDateColumn({ type: 'datetime' })
     created_at: Date;

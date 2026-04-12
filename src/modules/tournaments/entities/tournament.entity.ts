@@ -9,6 +9,8 @@ import {
     PrimaryGeneratedColumn
 } from "typeorm";
 import {TournamentStatus} from "../enums/TournamentStatus.enum";
+import {TournamentCategory} from "../enums/TournamentCategory.enum";
+import {TournamentFormat} from "../enums/TournamentFormat.enum";
 import {User} from "../../users/entities/user.entity";
 import {Team} from "../../teams/entities/team.entity";
 import {TeamMember} from "../../team-members/entities/team-member.entity";
@@ -33,6 +35,25 @@ export class Tournament {
 
     @Column({ type: 'text', nullable: true })
     rules: string | null;
+
+    @Column({
+        type: 'simple-enum',
+        enum: TournamentCategory,
+        nullable: true,
+        default: null,
+    })
+    category: TournamentCategory | null;
+
+    @Column({
+        type: 'simple-enum',
+        enum: TournamentFormat,
+        nullable: true,
+        default: null,
+    })
+    format: TournamentFormat | null;
+
+    @Column({ type: 'text', nullable: true })
+    prize: string | null;
 
     @Column({
         type: 'simple-enum',
