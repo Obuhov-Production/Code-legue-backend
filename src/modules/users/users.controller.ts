@@ -26,6 +26,12 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  async updateMe(@Req() req: any, @Body() body: any) {
+    return this.usersService.updateMe(req.user.userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get()
   async getAllUsers(): Promise<User[]> {
     return this.usersService.getAllUsers();

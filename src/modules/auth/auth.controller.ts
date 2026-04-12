@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Req, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -29,6 +29,12 @@ export class AuthController {
     @UseGuards(JwtAuthGuard)
     getMe(@Req() req: Request) {
         return this.authService.getMe((req.user as any).userId);
+    }
+
+    @Patch('me')
+    @UseGuards(JwtAuthGuard)
+    updateMe(@Req() req: Request, @Body() body: any) {
+        return this.authService.updateMe((req.user as any).userId, body);
     }
 
     /* ── Google OAuth ─────────────────────────────────── */

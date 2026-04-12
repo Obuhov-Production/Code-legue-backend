@@ -37,7 +37,7 @@ export class Tournament {
     rules: string | null;
 
     @Column({
-        type: 'simple-enum',
+        type: 'enum',
         enum: TournamentCategory,
         nullable: true,
         default: null,
@@ -45,7 +45,7 @@ export class Tournament {
     category: TournamentCategory | null;
 
     @Column({
-        type: 'simple-enum',
+        type: 'enum',
         enum: TournamentFormat,
         nullable: true,
         default: null,
@@ -56,7 +56,7 @@ export class Tournament {
     prize: string | null;
 
     @Column({
-        type: 'simple-enum',
+        type: 'enum',
         enum: TournamentStatus,
         default: TournamentStatus.DRAFT,
     })

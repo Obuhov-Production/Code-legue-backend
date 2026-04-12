@@ -36,4 +36,22 @@ export class UsersService {
     async getAllUsers(): Promise<User[]> {
         return this.userRepository.find();
     }
+
+    async updateMe(userId: number, dto: {
+        first_name?: string;
+        last_name?: string;
+        middle_name?: string;
+        pinned_badge?: string;
+        user_description?: string;
+        banner_color?: string;
+        banner_url?: string;
+        user_avatar_url?: string;
+    }): Promise<Omit<User, 'password'>> {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new NotFoundException('User not found');
+        Object.assign(user, dto);
+        const saved = await this.userRepository.save(user);
+        const { password, ...userData } = saved as any;
+        return userData;
+    }
 }

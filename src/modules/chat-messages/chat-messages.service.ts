@@ -11,12 +11,13 @@ export class ChatMessagesService {
         @InjectRepository(ChatRoom) private readonly chatRoomRepo: Repository<ChatRoom>,
     ) {}
 
-    async findByRoom(room: string): Promise<Message[]> {
-        return this.messageRepo.find({
+    async findByRoom(room: string): Promise<any[]> {
+        const msgs = await this.messageRepo.find({
             where: { room },
-            relations: ['user'],
+            relations: ['user', 'replyTo', 'replyTo.user'],
             order: { created_at: 'ASC' },
         });
+        return msgs.map(m => this.formatMessage(m));
     }
 
     // Створює кімнату якщо не існує
@@ -38,7 +39,7 @@ export class ChatMessagesService {
         text: string;
         reply_to_id?: number;
         file_url?: string;
-    }): Promise<Message> {
+    }): Promise<any> {
         // гарантуємо що кімната існує
         await this.ensureRoom(data.room, data.user_id);
 
@@ -50,10 +51,11 @@ export class ChatMessagesService {
             file_url: data.file_url ?? undefined,
         });
         const saved = await this.messageRepo.save(message);
-        return this.messageRepo.findOne({
+        const full = await this.messageRepo.findOne({
             where: { id: saved.id },
-            relations: ['user', 'replyTo'],
-        }) as Promise<Message>;
+            relations: ['user', 'replyTo', 'replyTo.user'],
+        }) as Message;
+        return this.formatMessage(full);
     }
 
     async deleteMessage(messageId: number, userId: number, isAdmin: boolean): Promise<void> {
@@ -63,13 +65,26 @@ export class ChatMessagesService {
         await this.messageRepo.delete(messageId);
     }
 
-    async editMessage(messageId: number, userId: number, newText: string): Promise<Message> {
+    async editMessage(messageId: number, userId: number, newText: string): Promise<any> {
         const msg = await this.messageRepo.findOne({ where: { id: messageId } });
         if (!msg) throw new Error('Message not found');
         if (msg.user_id !== userId) throw new Error('Forbidden');
         msg.text = newText;
         msg.edited_at = new Date();
         await this.messageRepo.save(msg);
-        return this.messageRepo.findOne({ where: { id: messageId }, relations: ['user'] }) as Promise<Message>;
+        const full = await this.messageRepo.findOne({ where: { id: messageId }, relations: ['user'] }) as Message;
+        return this.formatMessage(full);
+    }
+
+    private formatMessage(m: Message): Record<string, any> {
+        const { user, ...rest } = m as any;
+        return {
+            ...rest,
+            username: user?.username ?? null,
+            user_avatar_url: user?.user_avatar_url ?? null,
+            first_name: user?.first_name ?? null,
+            last_name: user?.last_name ?? null,
+            pinned_badge: user?.pinned_badge ?? null,
+        };
     }
 }

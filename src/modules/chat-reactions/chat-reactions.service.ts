@@ -15,4 +15,22 @@ export class ChatReactionsService {
             .innerJoin('r.message', 'm', 'm.room = :room', { room })
             .getMany();
     }
+
+    async toggle(messageId: number, userId: number, username: string, emoji: string): Promise<{ count: number; users: string[] }> {
+        const existing = await this.reactionRepo.findOne({
+            where: { message_id: messageId, user_id: userId, emoji },
+        });
+
+        if (existing) {
+            await this.reactionRepo.remove(existing);
+        } else {
+            await this.reactionRepo.save(
+                this.reactionRepo.create({ message_id: messageId, user_id: userId, username, emoji }),
+            );
+        }
+
+        const all = await this.reactionRepo.find({ where: { message_id: messageId, emoji } });
+        return { count: all.length, users: all.map(r => r.username) };
+    }
 }
+

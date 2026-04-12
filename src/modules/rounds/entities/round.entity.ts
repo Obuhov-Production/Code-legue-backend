@@ -39,7 +39,7 @@ export class Round {
     description: string;
 
     @Column({
-        type: 'simple-enum',
+        type: 'enum',
         enum: RoundStatus,
         default: RoundStatus.DRAFT,
     })

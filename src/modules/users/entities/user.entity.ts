@@ -24,11 +24,11 @@ export class User {
     password: string;
 
     @Column({
-        type: 'simple-enum',
-        enum: UserRole,
-        default: UserRole.USER,
+        type: 'varchar',
+        length: 100,
+        default: 'user',
     })
-    role: UserRole;
+    role: string;
 
     @Column({ type: 'text', nullable: true })
     user_description: string;
@@ -50,6 +50,18 @@ export class User {
 
     @Column({ nullable: true })
     discordId: string;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    first_name: string;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    last_name: string;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    middle_name: string;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    pinned_badge: string;
 
     @CreateDateColumn()
     created_at: Date;

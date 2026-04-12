@@ -55,7 +55,7 @@ export class Submission {
     description: string;
 
     @Column({
-        type: 'simple-enum',
+        type: 'enum',
         enum: SubmissionStatus,
         default: SubmissionStatus.DRAFT,
     })

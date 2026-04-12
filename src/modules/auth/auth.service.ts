@@ -7,6 +7,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserRole } from '../users/enums/UserRole.enum';
 
 @Injectable()
 export class AuthService {
@@ -16,7 +17,7 @@ export class AuthService {
         private configService: ConfigService,
     ) {}
 
-    private signTokens(payload: { userId: number; username: string; email: string }) {
+    private signTokens(payload: { userId: number; username: string; email: string; role: string }) {
         const accessToken = this.jwtService.sign(payload, {
             secret: this.configService.get<string>('JWT_SECRET'),
             expiresIn: '2h',
@@ -43,10 +44,11 @@ export class AuthService {
             email: dto.email,
             username: dto.username,
             password: hashedPassword,
+            role: UserRole.USER,
         });
 
         const savedUser = await this.authRepository.save(user);
-        const payload = { userId: savedUser.id, username: savedUser.username, email: savedUser.email };
+        const payload = { userId: savedUser.id, username: savedUser.username, email: savedUser.email, role: savedUser.role };
         const tokens = this.signTokens(payload);
         const { password, ...userData } = savedUser;
 
@@ -56,7 +58,7 @@ export class AuthService {
     async login(dto: LoginUserDto) {
         const user = await this.authRepository.findOne({
             where: { email: dto.email },
-            select: ['id', 'username', 'email', 'password'],
+            select: ['id', 'username', 'email', 'password', 'role'],
         });
 
         if (!user) {
@@ -68,7 +70,7 @@ export class AuthService {
             throw new UnauthorizedException('Невірна пошта або пароль');
         }
 
-        const payload = { userId: user.id, username: user.username, email: user.email };
+        const payload = { userId: user.id, username: user.username, email: user.email, role: user.role };
         const tokens = this.signTokens(payload);
         const { password, ...userData } = user;
         return { user: userData, ...tokens };
@@ -117,6 +119,7 @@ export class AuthService {
                 email,
                 username: uniqueUsername,
                 password: randomPassword,
+                role: UserRole.USER,
                 googleId: googleId ?? undefined,
                 discordId: discordId ?? undefined,
                 user_avatar_url: avatarUrl ?? undefined,
@@ -124,7 +127,7 @@ export class AuthService {
             user = await this.authRepository.save(this.authRepository.create(partial));
         }
 
-        const payload = { userId: user.id, username: user.username, email: user.email };
+        const payload = { userId: user.id, username: user.username, email: user.email, role: user.role };
         const tokens = this.signTokens(payload);
         const { password, ...userData } = user;
         return { ...tokens, user: userData };
@@ -134,6 +137,24 @@ export class AuthService {
         const user = await this.authRepository.findOne({ where: { id: userId } });
         if (!user) throw new UnauthorizedException('Сесія закінчилась, увійдіть знову');
         const { password, ...userData } = user;
+        return userData;
+    }
+
+    async updateMe(userId: number, dto: {
+        first_name?: string;
+        last_name?: string;
+        middle_name?: string;
+        pinned_badge?: string;
+        user_description?: string;
+        banner_color?: string;
+        banner_url?: string;
+        user_avatar_url?: string;
+    }) {
+        const user = await this.authRepository.findOne({ where: { id: userId } });
+        if (!user) throw new UnauthorizedException('Сесія закінчилась, увійдіть знову');
+        Object.assign(user, dto);
+        const saved = await this.authRepository.save(user);
+        const { password, ...userData } = saved;
         return userData;
     }
 

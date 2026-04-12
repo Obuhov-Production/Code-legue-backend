@@ -11,11 +11,15 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatMessagesService } from './chat-messages.service';
+import { ChatReactionsService } from '../chat-reactions/chat-reactions.service';
 
 interface AuthSocket extends Socket {
     userId?: number;
     username?: string;
     role?: string;
+    first_name?: string;
+    last_name?: string;
+    pinned_badge?: string;
 }
 
 @WebSocketGateway({
@@ -31,6 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     constructor(
         private readonly chatMessagesService: ChatMessagesService,
+        private readonly chatReactionsService: ChatReactionsService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
     ) {}
@@ -57,6 +62,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.userId = payload.userId;
             client.username = payload.username;
             client.role = payload.role ?? 'user';
+            client.first_name = payload.first_name ?? null;
+            client.last_name = payload.last_name ?? null;
+            client.pinned_badge = payload.pinned_badge ?? null;
+            // join private room for notifications
+            client.join(`user_${payload.userId}`);
             console.log(`[WS] connected: ${client.username} (${client.id})`);
             client.emit('connected', { userId: payload.userId, username: payload.username });
         } catch (e) {
@@ -172,5 +182,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         } catch (e) {
             client.emit('error', { message: e.message });
         }
+    }
+
+    @SubscribeMessage('react')
+    async handleReact(
+        @ConnectedSocket() client: AuthSocket,
+        @MessageBody() data: { room: string; messageId: number; emoji: string },
+    ) {
+        if (!client.userId) return;
+        const result = await this.chatReactionsService.toggle(
+            data.messageId,
+            client.userId,
+            client.username!,
+            data.emoji,
+        );
+        this.server.to(data.room).emit('reaction:update', {
+            messageId: data.messageId,
+            emoji: data.emoji,
+            count: result.count,
+            users: result.users,
+        });
+    }
+
+    sendToUser(userId: number, event: string, data: object) {
+        this.server.to(`user_${userId}`).emit(event, data);
     }
 }

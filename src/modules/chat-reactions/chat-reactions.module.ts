@@ -9,5 +9,6 @@ import {ChatReaction} from "./entities/chat-reaction.entity";
   imports: [TypeOrmModule.forFeature([ ChatReaction ])],
   controllers: [ChatReactionsController],
   providers: [ChatReactionsService],
+  exports: [ChatReactionsService],
 })
 export class ChatReactionsModule {}

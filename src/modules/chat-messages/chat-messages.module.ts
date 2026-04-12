@@ -8,6 +8,7 @@ import { ChatGateway } from './chat.gateway';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UploadsModule } from '../../common/uploads/uploads.module';
+import { ChatReactionsModule } from '../chat-reactions/chat-reactions.module';
 
 @Module({
   imports: [
@@ -21,8 +22,10 @@ import { UploadsModule } from '../../common/uploads/uploads.module';
       }),
     }),
     UploadsModule,
+    ChatReactionsModule,
   ],
   controllers: [ChatMessagesController],
   providers: [ChatMessagesService, ChatGateway],
+  exports: [ChatGateway],
 })
 export class ChatMessagesModule {}
