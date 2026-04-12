@@ -28,13 +28,16 @@ export class DiscordStrategy extends PassportStrategy(Strategy, 'discord') {
         const avatarUrl = avatar
             ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
             : undefined;
-
-        const result = await this.authService.oauthLogin({
-            email,
-            username,
-            discordId: id,
-            avatarUrl,
-        });
-        done(null, result);
+        try {
+            const result = await this.authService.oauthLogin({
+                email: email ?? undefined,
+                username: username || `discord_${id}`,
+                discordId: id,
+                avatarUrl,
+            });
+            done(null, result);
+        } catch (err) {
+            done(err as Error, undefined);
+        }
     }
 }

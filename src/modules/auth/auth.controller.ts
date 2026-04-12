@@ -42,9 +42,10 @@ export class AuthController {
     @Get('google/callback')
     @UseGuards(GoogleOAuthGuard)
     googleCallback(@Req() req: Request, @Res() res: Response) {
-        const { token } = req.user as any;
+        const { token, user } = req.user as any;
         const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-        return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}`);
+        const encodedUser = encodeURIComponent(JSON.stringify(user));
+        return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}&user=${encodedUser}`);
     }
 
     /* ── Discord OAuth ────────────────────────────────── */
@@ -58,8 +59,9 @@ export class AuthController {
     @Get('discord/callback')
     @UseGuards(DiscordOAuthGuard)
     discordCallback(@Req() req: Request, @Res() res: Response) {
-        const { token } = req.user as any;
+        const { token, user } = req.user as any;
         const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-        return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}`);
+        const encodedUser = encodeURIComponent(JSON.stringify(user));
+        return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}&user=${encodedUser}`);
     }
 }

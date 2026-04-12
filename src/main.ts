@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { DebugLoggerInterceptor } from './common/interceptors/debug-logger.interceptor';
 
 async function bootstrap() {
@@ -12,7 +12,12 @@ async function bootstrap() {
         credentials: true,
     });
 
-    app.setGlobalPrefix('api');
+    app.setGlobalPrefix('api', {
+        exclude: [
+            { path: 'auth/google/callback', method: RequestMethod.GET },
+            { path: 'auth/discord/callback', method: RequestMethod.GET },
+        ],
+    });
 
     if (process.env.DEBUG_MODE === 'true') {
         app.useGlobalInterceptors(new DebugLoggerInterceptor());

@@ -75,42 +75,59 @@ export class AuthService {
     }
 
     async oauthLogin(profile: {
-        email: string;
+        email?: string;
         username: string;
         googleId?: string;
         discordId?: string;
         avatarUrl?: string;
-    }): Promise<{ token: string; accessToken: string; refreshToken: string }> {
+    }): Promise<{ token: string; accessToken: string; refreshToken: string; user: Omit<User, 'password'> }> {
         const { email, username, googleId, discordId, avatarUrl } = profile;
 
-        if (!email) {
-            throw new BadRequestException('OAuth provider did not return an email');
+        let user: User | null = null;
+
+        // 1. Шукаємо за OAuth ID провайдера (пріоритет)
+        if (googleId) {
+            user = await this.authRepository.findOne({ where: { googleId } });
+        }
+        if (!user && discordId) {
+            user = await this.authRepository.findOne({ where: { discordId } });
         }
 
-        let user = await this.authRepository.findOne({ where: { email } });
+        // 2. Якщо не знайшли за OAuth ID — шукаємо за email для прив'язки
+        if (!user && email) {
+            user = await this.authRepository.findOne({ where: { email } });
+        }
 
-        if (!user) {
-            const hashedPassword = await bcrypt.hash(Math.random().toString(36) + Date.now(), 10);
+        if (user) {
+            // Прив'язуємо OAuth ID якщо ще не прив'язано
+            let changed = false;
+            if (googleId && !user.googleId) { user.googleId = googleId; changed = true; }
+            if (discordId && !user.discordId) { user.discordId = discordId; changed = true; }
+            // Оновлюємо аватар якщо змінився або ще не встановлено
+            if (avatarUrl && !user.user_avatar_url) { user.user_avatar_url = avatarUrl; changed = true; }
+            if (changed) await this.authRepository.save(user);
+        } else {
+            // 3. Новий користувач — реєструємо автоматично
+            if (!email) {
+                throw new BadRequestException('OAuth провайдер не повернув email. Перевірте налаштування вашого акаунту.');
+            }
+            const randomPassword = await bcrypt.hash(Math.random().toString(36) + Date.now().toString(), 12);
             const uniqueUsername = await this.buildUniqueUsername(username);
             const partial: DeepPartial<User> = {
                 email,
                 username: uniqueUsername,
-                password: hashedPassword,
+                password: randomPassword,
                 googleId: googleId ?? undefined,
                 discordId: discordId ?? undefined,
                 user_avatar_url: avatarUrl ?? undefined,
             };
-            const newUser = this.authRepository.create(partial);
-            user = await this.authRepository.save(newUser);
-        } else {
-            let changed = false;
-            if (googleId && !user.googleId) { user.googleId = googleId; changed = true; }
-            if (discordId && !user.discordId) { user.discordId = discordId; changed = true; }
-            if (changed) await this.authRepository.save(user);
+            user = await this.authRepository.save(this.authRepository.create(partial));
         }
 
-        const payload = { userId: user!.id, username: user!.username, email: user!.email };
-        return this.signTokens(payload);
+        const payload = { userId: user.id, username: user.username, email: user.email };
+        const tokens = this.signTokens(payload);
+        const { password, ...userData } = user;
+        return { ...tokens, user: userData };
     }
 
     async getMe(userId: number) {
