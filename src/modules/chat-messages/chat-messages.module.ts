@@ -7,7 +7,7 @@ import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import { ChatGateway } from './chat.gateway';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UploadsModule } from '../../common/uploads/uploads.module';
+//import { UploadsModule } from '../../common/uploads/uploads.module';
 import { ChatReactionsModule } from '../chat-reactions/chat-reactions.module';
 
 @Module({
@@ -21,7 +21,7 @@ import { ChatReactionsModule } from '../chat-reactions/chat-reactions.module';
         signOptions: { expiresIn: '2h' },
       }),
     }),
-    UploadsModule,
+      //    UploadsModule,
     ChatReactionsModule,
   ],
   controllers: [ChatMessagesController],
