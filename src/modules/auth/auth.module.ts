@@ -23,5 +23,6 @@ import { DiscordStrategy } from './strategies/discord.strategy';
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy, GoogleStrategy, DiscordStrategy],
+    exports: [AuthService],
 })
 export class AuthModule {}

@@ -167,4 +167,21 @@ export class AuthService {
         }
         return name;
     }
+
+    async refresh(refreshToken: string) {
+        try {
+            const payload = await this.jwtService.verifyAsync(refreshToken);
+            const newAccessToken = this.jwtService.sign(
+                { userId: payload.userId, username: payload.username },
+                { expiresIn: '2h' },
+            );
+            return { accessToken: newAccessToken };
+        } catch (err) {
+            throw new UnauthorizedException('Invalid or expired token');
+        }
+    }
+
+    verifyAccessToken(token: string) {
+        return this.jwtService.verify(token);
+    }
 }

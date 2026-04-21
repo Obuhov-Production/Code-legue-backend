@@ -70,4 +70,18 @@ export class AuthController {
         const encodedUser = encodeURIComponent(JSON.stringify(user));
         return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}&user=${encodedUser}`);
     }
+
+    @Post('verify')
+    verify(@Body('token') token: string) {
+        try {
+            return this.authService.verifyAccessToken(token);
+        } catch {
+            throw new UnauthorizedException();
+        }
+    }
+
+    @Post('refresh')
+    refresh(@Body('refreshToken') refreshToken: string) {
+        return this.authService.refresh(refreshToken);
+    }
 }
