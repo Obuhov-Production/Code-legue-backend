@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ChatMessagesService } from './chat-messages.service';
 import { ChatReactionsService } from '../chat-reactions/chat-reactions.service';
+import { ChatPinnedService } from '../chat-pinned/chat-pinned.service';
 
 interface AuthSocket extends Socket {
     userId?: number;
@@ -36,6 +37,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     constructor(
         private readonly chatMessagesService: ChatMessagesService,
         private readonly chatReactionsService: ChatReactionsService,
+        private readonly chatPinnedService: ChatPinnedService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
     ) {}
@@ -206,5 +208,51 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     sendToUser(userId: number, event: string, data: object) {
         this.server.to(`user_${userId}`).emit(event, data);
+    }
+
+
+    @SubscribeMessage('pin_message')
+    async handlePin(
+        @ConnectedSocket() client: AuthSocket,
+        @MessageBody() data: { room?: string; messageId: number },
+    ) {
+        if (!client.userId) return;
+        let room = data.room;
+        if (!room) {
+            // fallback: шукаємо room по messageId
+            const msg = await this.chatMessagesService['messageRepo'].findOne({ where: { id: data.messageId } });
+            room = msg?.room;
+            console.warn('[WS] pin_message: room was missing, resolved from message:', { messageId: data.messageId, room });
+        }
+        if (!room) {
+            client.emit('error', { message: 'Room not found for pin' });
+            return;
+        }
+        const pinned = await this.chatPinnedService.pin(room, data.messageId, client.userId);
+        const full = await this.chatPinnedService.findByRoom(room);
+        const entry = full.find((p) => p.message_id === data.messageId);
+        this.server.to(room).emit('message:pinned', {
+            message: entry?.message ?? { id: data.messageId },
+        });
+    }
+
+    @SubscribeMessage('unpin_message')
+    async handleUnpin(
+        @ConnectedSocket() client: AuthSocket,
+        @MessageBody() data: { room?: string; messageId: number },
+    ) {
+        if (!client.userId) return;
+        let room = data.room;
+        if (!room) {
+            const msg = await this.chatMessagesService['messageRepo'].findOne({ where: { id: data.messageId } });
+            room = msg?.room;
+            console.warn('[WS] unpin_message: room was missing, resolved from message:', { messageId: data.messageId, room });
+        }
+        if (!room) {
+            client.emit('error', { message: 'Room not found for unpin' });
+            return;
+        }
+        await this.chatPinnedService.unpin(room, data.messageId);
+        this.server.to(room).emit('message:unpinned', { messageId: data.messageId });
     }
 }

@@ -9,6 +9,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 //import { UploadsModule } from '../../common/uploads/uploads.module';
 import { ChatReactionsModule } from '../chat-reactions/chat-reactions.module';
+import { ChatPinnedModule } from '../chat-pinned/chat-pinned.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ChatReactionsModule } from '../chat-reactions/chat-reactions.module';
     }),
       //    UploadsModule,
     ChatReactionsModule,
+    ChatPinnedModule,
   ],
   controllers: [ChatMessagesController],
   providers: [ChatMessagesService, ChatGateway],

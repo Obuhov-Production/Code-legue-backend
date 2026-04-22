@@ -9,5 +9,6 @@ import {ChatPinned} from "./entities/chat-pinned.entity";
   imports: [TypeOrmModule.forFeature([ ChatPinned ])],
   controllers: [ChatPinnedController],
   providers: [ChatPinnedService],
+  exports: [ChatPinnedService],
 })
 export class ChatPinnedModule {}

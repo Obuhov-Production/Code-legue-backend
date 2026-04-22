@@ -30,12 +30,13 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { BadgesModule } from './modules/badges/badges.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ContactModule } from './modules/contact/contact.module';
+import { PublicModule } from './modules/public/public.module';
 import {RefreshAccessTokenMiddleware} from "./middleware/refresh-token.middleware";
 
 
 
 @Module({
-  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule /* , UploadsModule */, ReviewsModule, ApplicationsModule, NotificationsModule, BadgesModule, AiModule, ContactModule],
+  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule /* , UploadsModule */, ReviewsModule, ApplicationsModule, NotificationsModule, BadgesModule, AiModule, ContactModule, PublicModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -16,4 +16,21 @@ export class ChatPinnedService {
             order: { pinned_at: 'DESC' },
         });
     }
+
+    async pin(room: string, messageId: number, pinnedBy: number): Promise<ChatPinned> {
+        if (!room || typeof room !== 'string') {
+            // Додаємо лог для дебагу
+            console.error('[ChatPinnedService] pin: room is missing or not a string', { room, messageId, pinnedBy });
+            throw new Error('Room must be a non-empty string');
+        }
+        const existing = await this.pinnedRepo.findOne({ where: { room, message_id: messageId } });
+        if (existing) return existing;
+
+        const entry = this.pinnedRepo.create({ room, message_id: messageId, pinned_by: pinnedBy });
+        return this.pinnedRepo.save(entry);
+    }
+
+    async unpin(room: string, messageId: number): Promise<void> {
+        await this.pinnedRepo.delete({ room, message_id: messageId });
+    }
 }
