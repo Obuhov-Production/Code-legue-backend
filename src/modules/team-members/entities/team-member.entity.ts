@@ -12,8 +12,7 @@ import {Team} from "../../teams/entities/team.entity";
 
 
 @Entity('team_members')
-@Unique(['email'])
-@Unique(['tournament'])
+@Unique(['email', 'tournament'])
 export class TeamMember {
     @PrimaryGeneratedColumn()
     id: number;

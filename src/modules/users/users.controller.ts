@@ -1,7 +1,8 @@
-import {Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req} from '@nestjs/common';
+import {Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, Query} from '@nestjs/common';
 import { UsersService } from './users.service';
 import {JwtAuthGuard} from "../auth/guards/jwt-auth.guard";
 import {User} from "./entities/user.entity";
+import {SearchUsersDto} from "./dto/search-users.dto";
 
 
 
@@ -35,6 +36,12 @@ export class UsersController {
   @Get()
   async getAllUsers(): Promise<User[]> {
     return this.usersService.getAllUsers();
+  }
+
+
+  @Get('search')
+  async searchUsers(@Query() query: SearchUsersDto) {
+    return this.usersService.searchUsers(query.q);
   }
 
 }

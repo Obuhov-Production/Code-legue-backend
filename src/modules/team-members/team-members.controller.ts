@@ -1,10 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req} from '@nestjs/common';
 import { TeamMembersService } from './team-members.service';
-import { CreateTeamMemberDto } from './dto/create-team-member.dto';
+import {JwtAuthGuard} from "../auth/guards/jwt-auth.guard";
+import {AddTeamMemberDto} from "./dto/add-team-member.dto";
 
 @Controller('team-members')
 export class TeamMembersController {
   constructor(private readonly teamMembersService: TeamMembersService) {}
 
-
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  async addMember(@Body() dto: AddTeamMemberDto, @Req() req) {
+    return this.teamMembersService.addMember(dto, req.user);
+  }
 }

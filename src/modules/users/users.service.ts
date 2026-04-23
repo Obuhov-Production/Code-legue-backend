@@ -54,4 +54,32 @@ export class UsersService {
         const { password, ...userData } = saved as any;
         return userData;
     }
+
+    async searchUsers(q: string) {
+        if (!q || q.trim().length < 2) {
+            return [];
+        }
+
+        const query = q.trim();
+
+        const users = await this.userRepository
+            .createQueryBuilder('user')
+            .select([
+                'user.id',
+                'user.username',
+                'user.email',
+                'user.role',
+                'user.user_description',
+                'user.user_avatar_url',
+                'user.banner_color',
+                'user.banner_url',
+                'user.created_at',
+            ])
+            .where('user.username LIKE :query', { query: `%${query}%` })
+            .andWhere('user.role != :banned', { banned: 'banned' }) // краще ніж LIKE
+            .limit(20)
+            .getMany();
+
+        return users;
+    }
 }
