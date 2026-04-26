@@ -18,6 +18,7 @@ async function bootstrap() {
         exclude: [
             { path: 'auth/google/callback', method: RequestMethod.GET },
             { path: 'auth/discord/callback', method: RequestMethod.GET },
+            { path: 'auth/github/callback', method: RequestMethod.GET },
         ],
     });
 
