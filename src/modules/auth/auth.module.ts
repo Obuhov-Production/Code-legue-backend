@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { DiscordStrategy } from './strategies/discord.strategy';
+import {GithubStrategy} from "./strategies/github.strategy";
 
 @Module({
     imports: [
@@ -22,7 +23,7 @@ import { DiscordStrategy } from './strategies/discord.strategy';
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService, JwtStrategy, GoogleStrategy, DiscordStrategy],
+    providers: [AuthService, JwtStrategy, GoogleStrategy, DiscordStrategy, GithubStrategy],
     exports: [AuthService],
 })
 export class AuthModule {}

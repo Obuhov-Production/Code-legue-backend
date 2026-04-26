@@ -7,6 +7,7 @@ import { GoogleOAuthGuard } from './guards/google-oauth.guard';
 import { DiscordOAuthGuard } from './guards/discord-oauth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ConfigService } from '@nestjs/config';
+import {GithubAuthGuard} from "./guards/github-auth.guard";
 
 @Controller('auth')
 export class AuthController {
@@ -47,13 +48,16 @@ export class AuthController {
 
     @Get('google/callback')
     @UseGuards(GoogleOAuthGuard)
-    googleCallback(@Req() req: Request, @Res() res: Response) {
-        const { token, user } = req.user as any;
-        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-        const encodedUser = encodeURIComponent(JSON.stringify(user));
-        return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}&user=${encodedUser}`);
-    }
+    async googleCallback(@Req() req, @Res() res: Response) {
+        const result = await this.authService.oauthLogin(req.user);
 
+        const frontendUrl =
+            this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+
+        return res.redirect(
+            `${frontendUrl}/auth/callback?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`
+        );
+    }
     /* ── Discord OAuth ────────────────────────────────── */
 
     @Get('discord')
@@ -64,11 +68,15 @@ export class AuthController {
 
     @Get('discord/callback')
     @UseGuards(DiscordOAuthGuard)
-    discordCallback(@Req() req: Request, @Res() res: Response) {
-        const { token, user } = req.user as any;
-        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-        const encodedUser = encodeURIComponent(JSON.stringify(user));
-        return res.redirect(`${frontendUrl}/login?oauth=success&token=${token}&user=${encodedUser}`);
+    async discordCallback(@Req() req, @Res() res: Response) {
+        const result = await this.authService.oauthLogin(req.user);
+
+        const frontendUrl =
+            this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+
+        return res.redirect(
+            `${frontendUrl}/auth/callback?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`
+        );
     }
 
     @Post('verify')
@@ -83,5 +91,21 @@ export class AuthController {
     @Post('refresh')
     refresh(@Body('refreshToken') refreshToken: string) {
         return this.authService.refresh(refreshToken);
+    }
+
+    @Get('github')
+    @UseGuards(GithubAuthGuard)
+    githubAuth() {
+        // нічого не треба
+    }
+
+    @Get('github/callback')
+    @UseGuards(GithubAuthGuard)
+    async githubCallback(@Req() req, @Res() res: Response) {
+        const result = await this.authService.oauthLogin(req.user);
+        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+        return res.redirect(
+            `${frontendUrl}/auth/callback?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`
+        );
     }
 }

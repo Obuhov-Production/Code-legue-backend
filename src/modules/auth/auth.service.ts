@@ -82,8 +82,9 @@ export class AuthService {
         googleId?: string;
         discordId?: string;
         avatarUrl?: string;
+        githubId?: string;
     }): Promise<{ token: string; accessToken: string; refreshToken: string; user: Omit<User, 'password'> }> {
-        const { email, username, googleId, discordId, avatarUrl } = profile;
+        const { email, username, googleId, discordId, avatarUrl, githubId } = profile;
 
         let user: User | null = null;
 
@@ -105,6 +106,10 @@ export class AuthService {
             let changed = false;
             if (googleId && !user.googleId) { user.googleId = googleId; changed = true; }
             if (discordId && !user.discordId) { user.discordId = discordId; changed = true; }
+            if (githubId && !user.githubId) {
+                user.githubId = githubId;
+                changed = true;
+            }
             // Оновлюємо аватар при кожному логіні (завжди свіжий)
             if (avatarUrl) { user.user_avatar_url = avatarUrl; changed = true; }
             if (changed) await this.authRepository.save(user);
@@ -122,6 +127,7 @@ export class AuthService {
                 role: UserRole.USER,
                 googleId: googleId ?? undefined,
                 discordId: discordId ?? undefined,
+                githubId: githubId ?? undefined,
                 user_avatar_url: avatarUrl ?? undefined,
             };
             user = await this.authRepository.save(this.authRepository.create(partial));
@@ -172,7 +178,7 @@ export class AuthService {
         try {
             const payload = await this.jwtService.verifyAsync(refreshToken);
             const newAccessToken = this.jwtService.sign(
-                { userId: payload.userId, username: payload.username },
+                { userId: payload.userId, username: payload.username,   email: payload.email, role: payload.role, },
                 { expiresIn: '2h' },
             );
             return { accessToken: newAccessToken };
@@ -184,4 +190,5 @@ export class AuthService {
     verifyAccessToken(token: string) {
         return this.jwtService.verify(token);
     }
+
 }

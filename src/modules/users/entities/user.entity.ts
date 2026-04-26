@@ -46,6 +46,9 @@ export class User {
     is_chat_muted: boolean;
 
     @Column({ nullable: true })
+    githubId?: string;
+
+    @Column({ nullable: true })
     googleId: string;
 
     @Column({ nullable: true })
