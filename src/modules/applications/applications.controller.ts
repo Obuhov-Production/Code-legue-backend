@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/enums/UserRole.enum';
+import {ReviewApplicationDto} from "./dto/review-application.dto";
 
 @Controller('applications')
 @UseGuards(JwtAuthGuard)
@@ -45,8 +46,12 @@ export class AdminApplicationsController {
     @Patch('organizer/:id')
     review(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { status: 'approved' | 'rejected'; adminComment?: string },
+        @Body() dto: ReviewApplicationDto,
     ) {
-        return this.applicationsService.review(id, body.status, body.adminComment);
+        return this.applicationsService.reviewOrganizer(
+            id,
+            dto.status,
+            dto.adminComment,
+        );
     }
 }

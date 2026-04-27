@@ -8,7 +8,11 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
-export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
+export enum ApplicationStatus {
+    PENDING = 'pending',
+    APPROVED = 'approved',
+    REJECTED = 'rejected',
+}
 
 @Entity('organizer_applications')
 export class OrganizerApplication {

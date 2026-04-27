@@ -6,10 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { OrganizerApplication } from './entities/organizer-application.entity';
+import {ApplicationStatus, OrganizerApplication} from './entities/organizer-application.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chat-messages/chat.gateway';
+import {UserRole} from "../users/enums/UserRole.enum";
 
 @Injectable()
 export class ApplicationsService {
@@ -23,15 +24,30 @@ export class ApplicationsService {
     ) {}
 
     async submitOrganizer(userId: number, motivation: string) {
-        const existing = await this.appRepo.findOne({ where: { userId } });
-        if (existing && existing.status === 'pending') {
-            throw new BadRequestException('Ви вже подали заявку. Очікуйте відповіді.');
-        }
-        if (existing && existing.status === 'approved') {
-            throw new BadRequestException('Вашу заявку вже схвалено.');
+        const existing = await this.appRepo.findOne({
+            where: { userId },
+        });
+
+        if (existing) {
+            if (existing.status === ApplicationStatus.PENDING) {
+                throw new BadRequestException(
+                    'Ви вже подали заявку. Очікуйте відповіді.',
+                );
+            }
+
+            if (existing.status === ApplicationStatus.APPROVED) {
+                throw new BadRequestException(
+                    'Вашу заявку вже схвалено.',
+                );
+            }
         }
 
-        const application = this.appRepo.create({ userId, motivation, status: 'pending' });
+        const application = this.appRepo.create({
+            userId,
+            motivation,
+            status: ApplicationStatus.PENDING,
+        });
+
         return this.appRepo.save(application);
     }
 
@@ -52,38 +68,79 @@ export class ApplicationsService {
         }));
     }
 
-    async review(id: number, status: 'approved' | 'rejected', adminComment?: string) {
-        const application = await this.appRepo.findOne({ where: { id }, relations: ['user'] });
-        if (!application) throw new NotFoundException('Заявку не знайдено');
+    async reviewOrganizer(
+        id: number,
+        status: ApplicationStatus,
+        adminComment?: string,
+    ) {
+        const application = await this.appRepo.findOne({
+            where: { id },
+        });
 
+        if (!application) {
+            throw new NotFoundException('Заявку не знайдено');
+        }
+
+        if (application.status !== ApplicationStatus.PENDING) {
+            throw new BadRequestException(
+                'Цю заявку вже було оброблено',
+            );
+        }
+
+        // ================= UPDATE =================
         application.status = status;
         application.adminComment = adminComment ?? null;
+
         await this.appRepo.save(application);
 
-        if (status === 'approved') {
-            const user = await this.userRepo.findOne({ where: { id: application.userId } });
+        // ================= APPROVED =================
+        if (status === ApplicationStatus.APPROVED) {
+            const user = await this.userRepo.findOne({
+                where: { id: application.userId },
+            });
+
             if (user) {
-                const roles = user.role.split(',').map(r => r.trim()).filter(Boolean);
-                if (!roles.includes('organizer')) {
-                    roles.push('organizer');
+                const roles = (user.role ?? '')
+                    .split(',')
+                    .map(r => r.trim())
+                    .filter(Boolean);
+
+                if (!roles.includes(UserRole.ORGANIZER)) {
+                    roles.push(UserRole.ORGANIZER);
                     user.role = roles.join(',');
                     await this.userRepo.save(user);
                 }
             }
         }
 
-        const message = status === 'approved'
-            ? 'Вашу заявку на організатора схвалено!'
-            : `Вашу заявку на організатора відхилено.${adminComment ? ' Причина: ' + adminComment : ''}`;
+        // ================= NOTIFICATION =================
+        const message =
+            status === ApplicationStatus.APPROVED
+                ? 'Ваша заявка на організатора прийнята!'
+                : `Ваша заявка на організатора відхилена.${
+                    adminComment ? ' Причина: ' + adminComment : ''
+                }`;
 
-        const notification = await this.notificationsService.create({
-            userId: application.userId,
-            message,
-            icon: status === 'approved' ? 'check-circle' : 'x-circle',
-            link_tab: 'applications',
-        });
+        const notification =
+            await this.notificationsService.create({
+                userId: application.userId,
+                message,
+                icon:
+                    status === ApplicationStatus.APPROVED
+                        ? 'check-circle'
+                        : 'x-circle',
+                link_tab: 'applications',
+            });
 
-        this.chatGateway.sendToUser(application.userId, 'notification:new', notification);
+        try {
+            this.chatGateway.sendToUser(
+                application.userId,
+                'notification:new',
+                notification,
+            );
+        } catch (e) {
+            console.error('Socket error:', e);
+        }
 
         return application;
     }
