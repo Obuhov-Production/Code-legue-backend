@@ -76,6 +76,9 @@ export class ApplicationsService {
             username: user?.username ?? null,
             email: user?.email ?? null,
             user_avatar_url: user?.user_avatar_url ?? null,
+            contact_email: app.contactEmail,
+            contact_telegram: app.contactTelegram,
+            contact_phone: app.contactPhone,
         }));
     }
 
