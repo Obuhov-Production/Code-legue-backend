@@ -23,7 +23,11 @@ export class ApplicationsService {
         private readonly chatGateway: ChatGateway,
     ) {}
 
-    async submitOrganizer(userId: number, motivation: string) {
+    async submitOrganizer(
+        userId: number,
+        motivation: string,
+        experience: string,
+    ) {
         const existing = await this.appRepo.findOne({
             where: { userId },
         });
@@ -45,6 +49,7 @@ export class ApplicationsService {
         const application = this.appRepo.create({
             userId,
             motivation,
+            experience,
             status: ApplicationStatus.PENDING,
         });
 
@@ -71,7 +76,6 @@ export class ApplicationsService {
     async reviewOrganizer(
         id: number,
         status: ApplicationStatus,
-        adminComment?: string,
     ) {
         const application = await this.appRepo.findOne({
             where: { id },
@@ -89,7 +93,6 @@ export class ApplicationsService {
 
         // ================= UPDATE =================
         application.status = status;
-        application.adminComment = adminComment ?? null;
 
         await this.appRepo.save(application);
 
@@ -117,20 +120,17 @@ export class ApplicationsService {
         const message =
             status === ApplicationStatus.APPROVED
                 ? 'Ваша заявка на організатора прийнята!'
-                : `Ваша заявка на організатора відхилена.${
-                    adminComment ? ' Причина: ' + adminComment : ''
-                }`;
+                : 'Ваша заявка на організатора відхилена.';
 
-        const notification =
-            await this.notificationsService.create({
-                userId: application.userId,
-                message,
-                icon:
-                    status === ApplicationStatus.APPROVED
-                        ? 'check-circle'
-                        : 'x-circle',
-                link_tab: 'applications',
-            });
+        const notification = await this.notificationsService.create({
+            userId: application.userId,
+            message,
+            icon:
+                status === ApplicationStatus.APPROVED
+                    ? 'check-circle'
+                    : 'x-circle',
+            link_tab: 'applications',
+        });
 
         try {
             this.chatGateway.sendToUser(

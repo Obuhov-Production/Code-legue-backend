@@ -31,8 +31,8 @@ export class OrganizerApplication {
     @Column({ type: 'varchar', default: 'pending' })
     status: ApplicationStatus;
 
-    @Column({ type: 'text', nullable: true })
-    adminComment: string | null;
+    @Column({ type: 'varchar', default: 'pending' })
+    experience: string;
 
     @CreateDateColumn()
     createdAt: Date;

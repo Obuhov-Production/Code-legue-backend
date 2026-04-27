@@ -15,6 +15,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/enums/UserRole.enum';
 import {ReviewApplicationDto} from "./dto/review-application.dto";
+import {SubmitOrganizerDto} from "./dto/submit-organizer.dto";
 
 @Controller('applications')
 @UseGuards(JwtAuthGuard)
@@ -22,8 +23,15 @@ export class ApplicationsController {
     constructor(private readonly applicationsService: ApplicationsService) {}
 
     @Post('organizer')
-    submit(@Request() req, @Body() body: { motivation: string }) {
-        return this.applicationsService.submitOrganizer(req.user.userId, body.motivation);
+    submit(
+        @Request() req,
+        @Body() body: SubmitOrganizerDto,
+    ) {
+        return this.applicationsService.submitOrganizer(
+            req.user.userId,
+            body.motivation,
+            body.experience,
+        );
     }
 
     @Get('organizer/my')
@@ -51,7 +59,6 @@ export class AdminApplicationsController {
         return this.applicationsService.reviewOrganizer(
             id,
             dto.status,
-            dto.adminComment,
         );
     }
 }
