@@ -1,13 +1,28 @@
-import {BadRequestException, ConflictException, Injectable, NotFoundException} from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Team } from './entities/team.entity';
 import {CreateTeamDto} from "./dto/create-team.dto";
+import {TeamMember} from "../team-members/entities/team-member.entity";
+import {Tournament} from "../tournaments/entities/tournament.entity";
+import {TournamentStatus} from "../tournaments/enums/TournamentStatus.enum";
 
 @Injectable()
 export class TeamsService {
     constructor(
         @InjectRepository(Team) private readonly teamRepo: Repository<Team>,
+
+        @InjectRepository(TeamMember)
+        private readonly memberRepo: Repository<TeamMember>,
+
+        @InjectRepository(Tournament)
+        private readonly tournamentRepo: Repository<Tournament>,
     ) {}
 
     async findMyTeams(userId: number): Promise<Team[]> {
@@ -68,5 +83,126 @@ export class TeamsService {
 
             throw new BadRequestException('Failed to create team');
         }
+    }
+
+    async getTeamsByTournament(tournamentId: number) {
+        const teams = await this.teamRepo.find({
+            where: { tournament_id: tournamentId },
+            relations: {
+                members: true, // якщо треба глибше → members: { user: true }
+            },
+            order: {
+                created_at: 'DESC',
+            },
+        });
+
+        return teams.map(team => ({
+            id: team.id,
+            name: team.name,
+            members: team.members,
+            city: team.city,
+            school: team.school,
+        }));
+    }
+
+    // ================= GET ONE =================
+    async getTeamById(id: number) {
+        const team = await this.teamRepo.findOne({
+            where: { id },
+            relations: {
+                members: true,
+            },
+        });
+
+        if (!team) throw new NotFoundException('Team not found');
+
+        return team;
+    }
+
+    // ================= UPDATE =================
+    async updateTeam(id: number, dto: any, user: any) {
+        const team = await this.teamRepo.findOne({
+            where: { id },
+            relations: {
+                tournament: true,
+                members: true,
+            },
+        });
+
+        if (!team) throw new NotFoundException('Team not found');
+
+        if (team.captain_id !== user.userId) {
+            throw new ForbiddenException('Only captain can update team');
+        }
+
+        if (
+            team.tournament.status === TournamentStatus.RUNNING ||
+            team.tournament.status === TournamentStatus.FINISHED
+        ) {
+            throw new BadRequestException(
+                'Cannot update team after tournament start',
+            );
+        }
+
+        if (dto.name) {
+            team.name = dto.name;
+        }
+
+        if (dto.members) {
+            const min = team.tournament.min_team_size;
+            const max = team.tournament.max_team_size;
+
+            if (dto.members.length < min || dto.members.length > max) {
+                throw new BadRequestException(
+                    `Team size must be between ${min} and ${max}`,
+                );
+            }
+
+            await this.memberRepo.delete({ team: { id: team.id } });
+
+            const newMembers = dto.members.map((m) =>
+                this.memberRepo.create({
+                    team,
+                    fullName: m.fullName,
+                    email: m.email,
+                }),
+            );
+
+            await this.memberRepo.save(newMembers);
+        }
+
+        await this.teamRepo.save(team);
+
+        return { success: true };
+    }
+
+    // ================= DELETE =================
+    async deleteTeam(id: number, user: any) {
+        const team = await this.teamRepo.findOne({
+            where: { id },
+            relations: {
+                tournament: true,
+            },
+        });
+
+        if (!team) throw new NotFoundException('Team not found');
+
+        if (
+            team.captain_id !== user.userId &&
+            user.role !== 'admin'
+        ) {
+            throw new ForbiddenException('No access');
+        }
+
+        await this.teamRepo.remove(team);
+
+        return { success: true };
+    }
+
+
+    async getTeamsCount(tournamentId: number) {
+        return this.teamRepo.count({
+            where: { tournament_id: tournamentId },
+        });
     }
 }

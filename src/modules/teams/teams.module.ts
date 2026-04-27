@@ -9,7 +9,7 @@ import {Submission} from "../submissions/entities/submission.entity";
 import {User} from "../users/entities/user.entity";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ Team ])],
+  imports: [TypeOrmModule.forFeature([ Team,  TeamMember, Tournament, ])],
     controllers: [TeamsController],
   providers: [TeamsService],
 })
