@@ -31,12 +31,16 @@ export class ApplicationsController {
             req.user.userId,
             body.motivation,
             body.experience,
+            body.contact_email,
+            body.contact_telegram,
+            body.contact_phone,
         );
     }
 
     @Get('organizer/my')
-    getMy(@Request() req) {
-        return this.applicationsService.getMyApplication(req.user.userId);
+    async getMy(@Request() req) {
+        const app = await this.applicationsService.getMyApplication(req.user.userId);
+        return app ?? { hasApplication: false };
     }
 }
 

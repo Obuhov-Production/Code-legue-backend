@@ -26,7 +26,10 @@ export class ApplicationsService {
     async submitOrganizer(
         userId: number,
         motivation: string,
-        experience: string,
+        experience?: string,
+        contactEmail?: string,
+        contactTelegram?: string,
+        contactPhone?: string,
     ) {
         const existing = await this.appRepo.findOne({
             where: { userId },
@@ -50,6 +53,9 @@ export class ApplicationsService {
             userId,
             motivation,
             experience,
+            contactEmail: contactEmail || null,
+            contactTelegram: contactTelegram || null,
+            contactPhone: contactPhone || null,
             status: ApplicationStatus.PENDING,
         });
 

@@ -31,8 +31,17 @@ export class OrganizerApplication {
     @Column({ type: 'varchar', default: 'pending' })
     status: ApplicationStatus;
 
-    @Column({ type: 'varchar', default: 'pending' })
+    @Column({ type: 'text', nullable: true })
     experience: string;
+
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    contactEmail: string;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    contactTelegram: string;
+
+    @Column({ type: 'varchar', length: 50, nullable: true })
+    contactPhone: string;
 
     @CreateDateColumn()
     createdAt: Date;
