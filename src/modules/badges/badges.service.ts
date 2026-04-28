@@ -10,10 +10,6 @@ export class BadgesService {
         private readonly badgeRepo: Repository<Badge>,
     ) {}
 
-    async getMyBadges(userId: number): Promise<Badge[]> {
-        return this.badgeRepo.find({ where: { userId }, order: { granted_at: 'DESC' } });
-    }
-
     async getBadgesByUser(userId: number): Promise<Badge[]> {
         return this.badgeRepo.find({ where: { userId }, order: { granted_at: 'DESC' } });
     }

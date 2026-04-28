@@ -13,7 +13,7 @@ export class BadgesController {
 
     @Get('my')
     getMyBadges(@Req() req: any) {
-        return this.badgesService.getMyBadges(req.user.userId);
+        return this.badgesService.getBadgesByUser(req.user.userId);
     }
 }
 
