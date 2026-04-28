@@ -50,7 +50,7 @@ export class ApplicationsService {
         }
 
         const application = this.appRepo.create({
-            userId,
+            user: { id: userId } as User,
             motivation,
             experience,
             contactEmail: contactEmail || null,
