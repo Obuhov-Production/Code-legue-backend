@@ -5,7 +5,7 @@ import { ChatMessagesService } from './chat-messages.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 //import { UploadsService } from '../../common/uploads/uploads.service';
 
-@Controller('chat')
+@Controller('chat/messages')
 export class ChatMessagesController {
     constructor(
         private readonly chatMessagesService: ChatMessagesService,
