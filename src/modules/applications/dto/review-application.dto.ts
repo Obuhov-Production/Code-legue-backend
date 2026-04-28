@@ -4,8 +4,4 @@ import { ApplicationStatus } from "../entities/organizer-application.entity";
 export class ReviewApplicationDto {
     @IsEnum(ApplicationStatus)
     status: ApplicationStatus;
-
-    @IsOptional()
-    @IsString()
-    adminComment?: string;
 }

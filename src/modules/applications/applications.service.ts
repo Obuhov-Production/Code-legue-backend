@@ -50,14 +50,14 @@ export class ApplicationsService {
         }
 
         const application = this.appRepo.create({
-            user: { id: userId } as User,
+            userId,
             motivation,
             experience,
             contactEmail: contactEmail || null,
             contactTelegram: contactTelegram || null,
             contactPhone: contactPhone || null,
             status: ApplicationStatus.PENDING,
-        });
+        } as Partial<OrganizerApplication>);
 
         return this.appRepo.save(application);
     }

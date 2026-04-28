@@ -1,7 +1,7 @@
 import {
     Column,
     CreateDateColumn,
-    Entity,
+    Entity, JoinColumn,
     ManyToOne,
     PrimaryGeneratedColumn,
     UpdateDateColumn,
@@ -20,6 +20,7 @@ export class OrganizerApplication {
     id: number;
 
     @ManyToOne(() => User, { onDelete: 'CASCADE', eager: false })
+    @JoinColumn({ name: 'userId' })
     user: User;
 
     @Column()
@@ -28,7 +29,11 @@ export class OrganizerApplication {
     @Column({ type: 'text' })
     motivation: string;
 
-    @Column({ type: 'varchar', default: 'pending' })
+    @Column({
+        type: 'enum',
+        enum: ApplicationStatus,
+        default: ApplicationStatus.PENDING,
+    })
     status: ApplicationStatus;
 
     @Column({ type: 'text', nullable: true })
