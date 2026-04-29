@@ -82,4 +82,44 @@ export class UsersService {
 
         return users;
     }
+
+    async getPublicProfile(id: number) {
+        const user = await this.userRepository
+            .createQueryBuilder('user')
+            .select([
+                'user.id',
+                'user.username',
+                'user.role',
+                'user.user_description',
+                'user.user_avatar_url',
+                'user.banner_color',
+                'user.banner_url',
+                'user.first_name',
+                'user.last_name',
+                'user.middle_name',
+                'user.pinned_badge',
+                'user.created_at',
+            ])
+            .where('user.id = :id', { id })
+            .getOne();
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return user;
+    }
+
+    async deleteBanner(userId: number) {
+        const result = await this.userRepository.update(
+            { id: userId },
+            { banner_url: null },
+        );
+
+        if (result.affected === 0) {
+            throw new NotFoundException('User not found');
+        }
+
+        return { message: 'Banner removed' };
+    }
 }
