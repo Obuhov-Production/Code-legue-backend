@@ -6,6 +6,7 @@ import { Tournament } from '../tournaments/entities/tournament.entity';
 import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { UserRole } from '../users/enums/UserRole.enum';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
@@ -52,5 +53,45 @@ export class AdminService {
         if (!user) throw new NotFoundException('User not found');
         await this.userRepo.remove(user);
         return { message: 'User deleted' };
+    }
+
+    async resetUserPassword(userId: number, newPassword: string) {
+        const user = await this.userRepo.findOne({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await this.userRepo.update(userId, {
+            password: hashedPassword,
+        });
+
+        return { message: 'Password updated successfully' };
+    }
+
+    async getTeams() {
+        return this.teamRepo.find({
+            relations: {
+                tournament: true,
+            },
+        });
+    }
+
+    async deleteTeam(id: number) {
+        const team = await this.teamRepo.findOne({
+            where: { id },
+        });
+
+        if (!team) {
+            throw new NotFoundException('Team not found');
+        }
+
+        await this.teamRepo.delete(id);
+
+        return { message: 'Team deleted successfully' };
     }
 }
