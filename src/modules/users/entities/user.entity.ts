@@ -40,7 +40,7 @@ export class User {
     banner_color: string;
 
     @Column({ nullable: true })
-    banner_url: string | null;
+    banner_url: string;
 
     @Column({ default: false })
     is_chat_muted: boolean;

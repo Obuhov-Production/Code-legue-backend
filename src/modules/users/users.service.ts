@@ -113,7 +113,7 @@ export class UsersService {
     async deleteBanner(userId: number) {
         const result = await this.userRepository.update(
             { id: userId },
-            { banner_url: null },
+            { banner_url: null as any },
         );
 
         if (result.affected === 0) {
