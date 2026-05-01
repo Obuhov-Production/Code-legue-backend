@@ -26,6 +26,11 @@ export class TournamentsController {
     return this.tournamentsService.getLeaderboard(Number(id));
   }
 
+  @Get(':id/jury')
+  getAssignedJury(@Param('id') id: string) {
+    return this.tournamentsService.getAssignedJury(Number(id));
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() dto: CreateTournamentDto, @Req() req: Request) {

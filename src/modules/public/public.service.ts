@@ -32,8 +32,16 @@ export class PublicService {
       description: t.description,
       status: t.status,
       category: t.category,
+      emoji: t.emoji,
       format: t.format,
       prize: t.prize,
+      tz: t.tz_enabled || t.status === TournamentStatus.RUNNING || t.status === TournamentStatus.FINISHED ? t.tz : null,
+      rounds_count: t.rounds_count,
+      min_team_size: t.min_team_size,
+      max_team_size: t.max_team_size,
+      elo_participation: t.elo_participation,
+      elo_per_round: t.elo_per_round,
+      elo_winner: t.elo_winner,
       start_date: t.start_date,
       end_date: t.end_date,
       registration_start: t.registration_start,
@@ -54,31 +62,43 @@ export class PublicService {
     }
 
     // Sum total_score across all evaluated submissions for each team
-    const rows = await this.teamRepo
-      .createQueryBuilder('team')
-      .leftJoin('team.submissions', 'submission')
-      .leftJoin('submission.evaluations', 'evaluation')
-      .select('team.id', 'id')
-      .addSelect('team.name', 'name')
-      .addSelect('team.city', 'city')
-      .addSelect('team.school', 'school')
-      .addSelect('team.organisation', 'organisation')
-      .addSelect('COALESCE(SUM(evaluation.total_score), 0)', 'total_score')
-      .addSelect('COUNT(DISTINCT submission.round_id)', 'rounds_submitted')
-      .where('team.tournament_id = :tournamentId', { tournamentId })
-      .groupBy('team.id')
-      .orderBy('total_score', 'DESC')
-      .getRawMany();
+    const teams = await this.teamRepo.find({
+      where: { tournament_id: tournamentId },
+      relations: {
+        submissions: {
+          evaluations: true,
+        },
+      },
+    });
+
+    const rows = teams.map((team) => {
+      let totalScore = 0;
+      const criteriaBreakdown: Record<string, number> = {};
+
+      for (const submission of team.submissions ?? []) {
+        for (const evaluation of submission.evaluations ?? []) {
+          totalScore += Number(evaluation.total_score || 0);
+          const criteria = (evaluation.criteria || {}) as Record<string, number>;
+          for (const [key, value] of Object.entries(criteria)) {
+            criteriaBreakdown[key] = (criteriaBreakdown[key] ?? 0) + Number(value || 0);
+          }
+        }
+      }
+
+      return {
+        team_id: team.id,
+        team_name: team.name,
+        city: team.city,
+        school: team.school,
+        organisation: team.organisation,
+        total_score: totalScore,
+        criteria_breakdown: criteriaBreakdown,
+      };
+    }).sort((a, b) => b.total_score - a.total_score);
 
     return rows.map((row, index) => ({
       rank: index + 1,
-      team_id: row.id,
-      team_name: row.name,
-      city: row.city,
-      school: row.school,
-      organisation: row.organisation,
-      total_score: Number(row.total_score),
-      rounds_submitted: Number(row.rounds_submitted),
+      ...row,
     }));
   }
 }

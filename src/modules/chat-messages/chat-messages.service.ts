@@ -76,12 +76,33 @@ export class ChatMessagesService {
         return this.formatMessage(full);
     }
 
+    async clearRoom(room: string) {
+        await this.messageRepo.delete({ room });
+        return { success: true };
+    }
+
+    async getCustomRooms(): Promise<any[]> {
+        const rooms = await this.chatRoomRepo.find({
+            order: { created_at: 'ASC' },
+        });
+        return rooms
+            .filter((r) => r.name !== 'general')
+            .map((r) => ({
+                id: r.id,
+                name: r.name,
+                label: r.label,
+                created_at: r.created_at,
+            }));
+    }
+
     private formatMessage(m: Message): Record<string, any> {
         const { user, ...rest } = m as any;
         return {
             ...rest,
             username: user?.username ?? null,
             user_avatar_url: user?.user_avatar_url ?? null,
+            status: user?.status ?? 'offline',
+            last_seen_at: user?.last_seen_at ?? null,
             first_name: user?.first_name ?? null,
             last_name: user?.last_name ?? null,
             pinned_badge: user?.pinned_badge ?? null,

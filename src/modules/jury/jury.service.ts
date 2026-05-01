@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JuryAssignment } from '../jury-assignments/entities/jury-assignment.entity';
+import { SubmissionsService } from '../submissions/submissions.service';
 
 @Injectable()
 export class JuryService {
     constructor(
         @InjectRepository(JuryAssignment)
         private readonly juryAssignmentRepo: Repository<JuryAssignment>,
+        private readonly submissionsService: SubmissionsService,
     ) {}
 
     async getTournamentsForJury(userId: number) {
@@ -36,7 +38,11 @@ export class JuryService {
     async getSubmissionsForJury(userId: number) {
         return this.juryAssignmentRepo.find({
             where: { jury_id: userId },
-            relations: { submission: true },
+            relations: { submission: { team: true, round: true, evaluations: true } },
         });
+    }
+
+    async getRoundSubmissions(roundId: number, user: any) {
+        return this.submissionsService.getAssignedRoundSubmissions(roundId, user);
     }
 }

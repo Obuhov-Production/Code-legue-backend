@@ -42,17 +42,20 @@ export class Submission {
     @OneToMany(() => Evaluation, (evaluation) => evaluation.submission)
     evaluations: Evaluation[];
 
-    @Column({ length: 500 })
-    github_url: string;
+    @Column({ type: 'varchar', length: 500 })
+    github_repo_url: string;
 
-    @Column({ length: 500 })
-    video_url: string;
+    @Column({ type: 'varchar', length: 100, default: 'main' })
+    github_branch: string;
 
-    @Column({ length: 500, nullable: true })
-    live_demo_url: string;
+    @Column({ type: 'varchar', length: 500 })
+    pitch_video_url: string;
+
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    live_demo_url: string | null;
 
     @Column('text', { nullable: true })
-    description: string;
+    description: string | null;
 
     @Column({
         type: 'enum',

@@ -1,11 +1,11 @@
 import {
-    WebSocketGateway,
-    WebSocketServer,
-    SubscribeMessage,
-    MessageBody,
     ConnectedSocket,
+    MessageBody,
     OnGatewayConnection,
     OnGatewayDisconnect,
+    SubscribeMessage,
+    WebSocketGateway,
+    WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
@@ -13,6 +13,11 @@ import { ConfigService } from '@nestjs/config';
 import { ChatMessagesService } from './chat-messages.service';
 import { ChatReactionsService } from '../chat-reactions/chat-reactions.service';
 import { ChatPinnedService } from '../chat-pinned/chat-pinned.service';
+import { UsersService } from '../users/users.service';
+import { PlatformUserStatus } from '../users/dto/update-status.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ChatRoomMember } from '../teams/entities/chat-room-member.entity';
 
 interface AuthSocket extends Socket {
     userId?: number;
@@ -34,19 +39,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer()
     server: Server;
 
+    private readonly statusTimeoutMs = 5 * 60 * 1000;
+    private readonly userConnections = new Map<number, number>();
+
     constructor(
         private readonly chatMessagesService: ChatMessagesService,
         private readonly chatReactionsService: ChatReactionsService,
         private readonly chatPinnedService: ChatPinnedService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
+        private readonly usersService: UsersService,
+        @InjectRepository(ChatRoomMember) private readonly chatRoomMemberRepo: Repository<ChatRoomMember>,
     ) {}
 
     async handleConnection(client: AuthSocket) {
         try {
-            const raw =
-                client.handshake.auth?.token ||
-                client.handshake.headers?.authorization;
+            const raw = client.handshake.auth?.token || client.handshake.headers?.authorization;
 
             if (!raw) {
                 client.emit('error', { message: 'Unauthorized' });
@@ -54,21 +62,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 return;
             }
 
-            // прибираємо "Bearer " якщо є
             const token = String(raw).replace(/^Bearer\s+/i, '');
-
             const payload = this.jwtService.verify(token, {
                 secret: this.configService.get<string>('JWT_SECRET'),
             });
 
+            const role = payload.role ?? 'user';
+            if (role.includes('banned')) {
+                client.emit('error', { message: 'Акаунт заблоковано' });
+                client.disconnect();
+                return;
+            }
+
             client.userId = payload.userId;
             client.username = payload.username;
-            client.role = payload.role ?? 'user';
+            client.role = role;
             client.first_name = payload.first_name ?? null;
             client.last_name = payload.last_name ?? null;
             client.pinned_badge = payload.pinned_badge ?? null;
-            // join private room for notifications
+
             client.join(`user_${payload.userId}`);
+            this.userConnections.set(payload.userId, (this.userConnections.get(payload.userId) ?? 0) + 1);
+
+            const presence = await this.usersService.updatePresence(payload.userId, PlatformUserStatus.ONLINE);
+            this.server.emit('status:changed', {
+                user_id: presence.id,
+                status: presence.status,
+                timestamp: presence.last_seen_at,
+            });
+
             console.log(`[WS] connected: ${client.username} (${client.id})`);
             client.emit('connected', { userId: payload.userId, username: payload.username });
         } catch (e) {
@@ -79,7 +101,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     handleDisconnect(client: AuthSocket) {
-        // повідомляємо кімнати де був клієнт
+        if (client.userId) {
+            const nextCount = Math.max(0, (this.userConnections.get(client.userId) ?? 1) - 1);
+            if (nextCount === 0) {
+                this.userConnections.delete(client.userId);
+                setTimeout(async () => {
+                    if ((this.userConnections.get(client.userId!) ?? 0) === 0) {
+                        const presence = await this.usersService.updatePresence(client.userId!, PlatformUserStatus.OFFLINE);
+                        this.server.emit('status:changed', {
+                            user_id: presence.id,
+                            status: presence.status,
+                            timestamp: presence.last_seen_at,
+                        });
+                    }
+                }, this.statusTimeoutMs);
+            } else {
+                this.userConnections.set(client.userId, nextCount);
+            }
+        }
+
         const rooms = Array.from(client.rooms).filter((r) => r !== client.id);
         rooms.forEach((room) => {
             client.to(room).emit('user:left', { userId: client.userId, username: client.username });
@@ -92,6 +132,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: { room: string },
     ) {
         const { room } = data;
+
+        if (room.startsWith('team_')) {
+            const isAdmin = client.role?.includes('admin');
+            if (!isAdmin) {
+                const membership = await this.chatRoomMemberRepo.findOne({
+                    where: { room, user_id: client.userId },
+                });
+                if (!membership) {
+                    client.emit('error', { message: 'Доступ заборонено' });
+                    return;
+                }
+            }
+        }
+
         await client.join(room);
         console.log(`[WS] ${client.username} joined room: ${room}`);
 
@@ -120,11 +174,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return;
         }
 
+        if (client.role?.includes('muted')) {
+            client.emit('error', { message: 'Вам заборонено писати повідомлення' });
+            return;
+        }
+
         if (!data.text?.trim() && !data.file_url) return;
 
-        console.log(`[WS] message:send from ${client.username} to room "${data.room}": ${data.text}`);
-
-        // якщо клієнт не в кімнаті — автоматично приєднуємо
         if (!client.rooms.has(data.room)) {
             await client.join(data.room);
         }
@@ -137,9 +193,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             file_url: data.file_url,
         });
 
-        // надсилаємо іншим у кімнаті
         client.to(data.room).emit('message:new', saved);
-        // надсилаємо відправнику окремо (гарантовано)
         client.emit('message:new', saved);
     }
 
@@ -164,7 +218,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const isAdmin = client.role === 'admin';
         try {
             await this.chatMessagesService.deleteMessage(data.messageId, client.userId, isAdmin);
-            // броадкастимо всім у кімнаті
             this.server.to(data.room).emit('message:deleted', { messageId: data.messageId });
         } catch (e) {
             client.emit('error', { message: e.message });
@@ -180,7 +233,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (!data.newText?.trim()) return;
         try {
             const updated = await this.chatMessagesService.editMessage(data.messageId, client.userId, data.newText.trim());
-            this.server.to(data.room).emit('message:edited', { messageId: data.messageId, newText: updated.text, edited_at: updated.edited_at });
+            this.server.to(data.room).emit('message:edited', {
+                messageId: data.messageId,
+                newText: updated.text,
+                edited_at: updated.edited_at,
+            });
         } catch (e) {
             client.emit('error', { message: e.message });
         }
@@ -206,10 +263,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
     }
 
+    @SubscribeMessage('status:update')
+    async handleStatusUpdate(
+        @ConnectedSocket() client: AuthSocket,
+        @MessageBody() data: { status: PlatformUserStatus },
+    ) {
+        if (!client.userId || !data?.status) return;
+
+        const presence = await this.usersService.updatePresence(client.userId, data.status);
+        this.server.emit('status:changed', {
+            user_id: presence.id,
+            status: presence.status,
+            timestamp: presence.last_seen_at,
+        });
+        client.emit('status:updated', {
+            status: presence.status,
+            updated_at: presence.last_seen_at,
+        });
+    }
+
     sendToUser(userId: number, event: string, data: object) {
         this.server.to(`user_${userId}`).emit(event, data);
     }
-
 
     @SubscribeMessage('pin_message')
     async handlePin(
@@ -219,16 +294,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (!client.userId) return;
         let room = data.room;
         if (!room) {
-            // fallback: шукаємо room по messageId
             const msg = await this.chatMessagesService['messageRepo'].findOne({ where: { id: data.messageId } });
             room = msg?.room;
-            console.warn('[WS] pin_message: room was missing, resolved from message:', { messageId: data.messageId, room });
         }
         if (!room) {
             client.emit('error', { message: 'Room not found for pin' });
             return;
         }
-        const pinned = await this.chatPinnedService.pin(room, data.messageId, client.userId);
+        await this.chatPinnedService.pin(room, data.messageId, client.userId);
         const full = await this.chatPinnedService.findByRoom(room);
         const entry = full.find((p) => p.message_id === data.messageId);
         this.server.to(room).emit('message:pinned', {
@@ -246,7 +319,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (!room) {
             const msg = await this.chatMessagesService['messageRepo'].findOne({ where: { id: data.messageId } });
             room = msg?.room;
-            console.warn('[WS] unpin_message: room was missing, resolved from message:', { messageId: data.messageId, room });
         }
         if (!room) {
             client.emit('error', { message: 'Room not found for unpin' });

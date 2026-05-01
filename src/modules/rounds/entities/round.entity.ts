@@ -36,7 +36,16 @@ export class Round {
     title: string;
 
     @Column('text', { nullable: true })
-    description: string;
+    description: string | null;
+
+    @Column('text', { nullable: true })
+    tech_requirements: string | null;
+
+    @Column('simple-json', { nullable: true })
+    must_have_items: string[] | null;
+
+    @Column('simple-json', { nullable: true })
+    materials: string[] | null;
 
     @Column({
         type: 'enum',
@@ -50,6 +59,9 @@ export class Round {
 
     @Column({ type: 'datetime' })
     end_date: Date;
+
+    @Column({ type: 'int', default: 0 })
+    sort_order: number;
 
     @CreateDateColumn({ type: 'datetime' })
     created_at: Date;

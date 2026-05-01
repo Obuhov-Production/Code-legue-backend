@@ -31,6 +31,9 @@ export class TeamMember {
     @Column()
     email: string;
 
+    @Column({ nullable: true, type: 'int' })
+    user_id: number | null;
+
     @CreateDateColumn()
     createdAt: Date;
 }

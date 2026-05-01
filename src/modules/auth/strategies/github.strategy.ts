@@ -38,6 +38,8 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
                 email,
                 username: displayName || username || `github_${id}`,
                 githubId: id,
+                githubUsername: username ?? null,
+                githubToken: accessToken,
                 avatarUrl,
             });
 

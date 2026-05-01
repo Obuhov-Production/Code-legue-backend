@@ -8,6 +8,7 @@ import { LoginUserDto } from './dto/login-user.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '../users/enums/UserRole.enum';
+import { PlatformUserStatus } from '../users/dto/update-status.dto';
 
 @Injectable()
 export class AuthService {
@@ -39,12 +40,18 @@ export class AuthService {
         }
 
         const hashedPassword = await bcrypt.hash(dto.password, 10);
+        const now = new Date();
 
         const user = this.authRepository.create({
             email: dto.email,
             username: dto.username,
             password: hashedPassword,
             role: UserRole.USER,
+            status: PlatformUserStatus.OFFLINE,
+            last_seen_at: now,
+            status_updated_at: now,
+            github_connected: false,
+            auth_provider: 'email',
         });
 
         const savedUser = await this.authRepository.save(user);
@@ -62,12 +69,12 @@ export class AuthService {
         });
 
         if (!user) {
-            throw new UnauthorizedException('Невірна пошта або пароль');
+            throw new UnauthorizedException('Invalid email or password');
         }
 
         const isPasswordValid = await bcrypt.compare(dto.password, user.password);
         if (!isPasswordValid) {
-            throw new UnauthorizedException('Невірна пошта або пароль');
+            throw new UnauthorizedException('Invalid email or password');
         }
 
         const payload = { userId: user.id, username: user.username, email: user.email, role: user.role };
@@ -83,48 +90,68 @@ export class AuthService {
         discordId?: string;
         avatarUrl?: string;
         githubId?: string;
+        githubUsername?: string | null;
+        githubToken?: string | null;
     }): Promise<{ token: string; accessToken: string; refreshToken: string; user: Omit<User, 'password'> }> {
-        const { email, username, googleId, discordId, avatarUrl, githubId } = profile;
+        const {
+            email,
+            username,
+            googleId,
+            discordId,
+            avatarUrl,
+            githubId,
+            githubUsername,
+            githubToken,
+        } = profile;
 
         let user: User | null = null;
 
-        // 1. Шукаємо за OAuth ID провайдера (пріоритет)
         if (googleId) {
             user = await this.authRepository.findOne({ where: { googleId } });
         }
         if (!user && discordId) {
             user = await this.authRepository.findOne({ where: { discordId } });
         }
-
-        // 2. Якщо не знайшли за OAuth ID — шукаємо за email для прив'язки
+        if (!user && githubId) {
+            user = await this.authRepository.findOne({ where: { githubId } });
+        }
         if (!user && email) {
             user = await this.authRepository.findOne({ where: { email } });
         }
 
         if (user) {
-            // Прив'язуємо OAuth ID якщо ще не прив'язано
             let changed = false;
             if (googleId && !user.googleId) { user.googleId = googleId; changed = true; }
             if (discordId && !user.discordId) { user.discordId = discordId; changed = true; }
-            if (githubId && !user.githubId) {
-                user.githubId = githubId;
-                changed = true;
-            }
-            // Оновлюємо аватар при кожному логіні (завжди свіжий)
+            if (githubId && !user.githubId) { user.githubId = githubId; changed = true; }
+            if (githubUsername) { user.github_username = githubUsername; changed = true; }
+            if (githubToken) { user.github_token = githubToken; changed = true; }
+            if (githubId) { user.github_connected = true; user.auth_provider = 'github'; changed = true; }
+            if (googleId) { user.auth_provider = 'google'; changed = true; }
             if (avatarUrl) { user.user_avatar_url = avatarUrl; changed = true; }
-            if (changed) await this.authRepository.save(user);
-        } else {
-            // 3. Новий користувач — реєструємо автоматично
-            if (!email) {
-                throw new BadRequestException('OAuth провайдер не повернув email. Перевірте налаштування вашого акаунту.');
+            if (changed) {
+                await this.authRepository.save(user);
             }
+        } else {
+            if (!email) {
+                throw new BadRequestException('OAuth provider did not return email');
+            }
+
             const randomPassword = await bcrypt.hash(Math.random().toString(36) + Date.now().toString(), 12);
             const uniqueUsername = await this.buildUniqueUsername(username);
+            const now = new Date();
             const partial: DeepPartial<User> = {
                 email,
                 username: uniqueUsername,
                 password: randomPassword,
                 role: UserRole.USER,
+                status: PlatformUserStatus.OFFLINE,
+                last_seen_at: now,
+                status_updated_at: now,
+                github_username: githubUsername ?? null,
+                github_token: githubToken ?? null,
+                github_connected: !!githubId,
+                auth_provider: githubId ? 'github' : googleId ? 'google' : 'email',
                 googleId: googleId ?? undefined,
                 discordId: discordId ?? undefined,
                 githubId: githubId ?? undefined,
@@ -141,7 +168,7 @@ export class AuthService {
 
     async getMe(userId: number) {
         const user = await this.authRepository.findOne({ where: { id: userId } });
-        if (!user) throw new UnauthorizedException('Сесія закінчилась, увійдіть знову');
+        if (!user) throw new UnauthorizedException('Session expired, please sign in again');
         const { password, ...userData } = user;
         return userData;
     }
@@ -157,7 +184,7 @@ export class AuthService {
         user_avatar_url?: string;
     }) {
         const user = await this.authRepository.findOne({ where: { id: userId } });
-        if (!user) throw new UnauthorizedException('Сесія закінчилась, увійдіть знову');
+        if (!user) throw new UnauthorizedException('Session expired, please sign in again');
         Object.assign(user, dto);
         const saved = await this.authRepository.save(user);
         const { password, ...userData } = saved;
@@ -178,11 +205,11 @@ export class AuthService {
         try {
             const payload = await this.jwtService.verifyAsync(refreshToken);
             const newAccessToken = this.jwtService.sign(
-                { userId: payload.userId, username: payload.username,   email: payload.email, role: payload.role, },
+                { userId: payload.userId, username: payload.username, email: payload.email, role: payload.role },
                 { expiresIn: '2h' },
             );
             return { accessToken: newAccessToken };
-        } catch (err) {
+        } catch {
             throw new UnauthorizedException('Invalid or expired token');
         }
     }
@@ -191,4 +218,10 @@ export class AuthService {
         return this.jwtService.verify(token);
     }
 
+    async touchUserActivity(userId: number) {
+        await this.authRepository.update(
+            { id: userId },
+            { last_seen_at: new Date() },
+        );
+    }
 }

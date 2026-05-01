@@ -90,6 +90,11 @@ export class AuthController {
     githubAuth() {
     }
 
+    @Get('github/login')
+    @UseGuards(GithubAuthGuard)
+    githubLogin() {
+    }
+
     @Get('github/callback')
     @UseGuards(GithubAuthGuard)
     githubCallback(@Req() req: Request, @Res() res: Response) {

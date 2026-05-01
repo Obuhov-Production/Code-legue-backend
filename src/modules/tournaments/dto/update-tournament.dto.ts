@@ -38,6 +38,17 @@ export class UpdateTournamentDto {
     prize?: string | null;
 
     @IsOptional()
+    @IsString()
+    emoji?: string | null;
+
+    @IsOptional()
+    @IsString()
+    tz?: string | null;
+
+    @IsOptional()
+    tz_enabled?: boolean;
+
+    @IsOptional()
     @IsDateString()
     start_date?: string;
 
@@ -73,4 +84,16 @@ export class UpdateTournamentDto {
     @Min(1)
     @Max(100)
     max_team_size?: number;
+
+    @IsOptional()
+    @IsInt()
+    elo_participation?: number | null;
+
+    @IsOptional()
+    @IsInt()
+    elo_per_round?: number | null;
+
+    @IsOptional()
+    @IsInt()
+    elo_winner?: number | null;
 }

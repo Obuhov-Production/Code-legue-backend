@@ -30,6 +30,9 @@ export class User {
     })
     role: string;
 
+    @Column({ type: 'int', default: 0 })
+    elo: number;
+
     @Column({ type: 'text', nullable: true })
     user_description: string;
 
@@ -39,11 +42,32 @@ export class User {
     @Column({ nullable: true })
     banner_color: string;
 
-    @Column({ nullable: true })
-    banner_url: string;
+    @Column({ type: 'varchar', nullable: true })
+    banner_url: string | null;
 
     @Column({ default: false })
     is_chat_muted: boolean;
+
+    @Column({ type: 'varchar', length: 20, default: 'offline' })
+    status: string;
+
+    @Column({ type: 'datetime', nullable: true })
+    last_seen_at: Date | null;
+
+    @UpdateDateColumn({ type: 'datetime', nullable: true })
+    status_updated_at: Date | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    github_username: string | null;
+
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    github_token: string | null;
+
+    @Column({ type: 'boolean', default: false })
+    github_connected: boolean;
+
+    @Column({ type: 'varchar', length: 20, default: 'email' })
+    auth_provider: string;
 
     @Column({ nullable: true })
     githubId?: string;

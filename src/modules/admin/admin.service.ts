@@ -1,12 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Tournament } from '../tournaments/entities/tournament.entity';
 import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
-import { UserRole } from '../users/enums/UserRole.enum';
 import * as bcrypt from 'bcrypt';
+import { BulkUserAction, BulkUserActionDto } from './dto/bulk-user-action.dto';
+import { SearchUsersDto } from './dto/search-users.dto';
 
 @Injectable()
 export class AdminService {
@@ -28,27 +29,129 @@ export class AdminService {
     }
 
     async getUsers() {
-        return this.userRepo.find({
-            select: ['id', 'username', 'email', 'role', 'created_at'],
+        const users = await this.userRepo.find({
             order: { created_at: 'DESC' },
         });
+
+        return { users: users.map((user) => this.toAdminUser(user)) };
+    }
+
+    async searchUsers(query: SearchUsersDto) {
+        const {
+            q,
+            role = 'all',
+            sort_by = 'created_at',
+            sort_desc = 'true',
+        } = query;
+
+        const total = await this.userRepo.count();
+
+        const qb = this.userRepo.createQueryBuilder('user');
+
+        if (q?.trim()) {
+            qb.andWhere('(LOWER(user.username) LIKE :q OR LOWER(user.email) LIKE :q)', {
+                q: `%${q.trim().toLowerCase()}%`,
+            });
+        }
+
+        if (role && role !== 'all') {
+            if (role === 'banned') {
+                qb.andWhere('LOWER(user.role) LIKE :bannedRole', {
+                    bannedRole: '%banned%',
+                });
+            } else {
+                qb.andWhere('LOWER(user.role) LIKE :role', {
+                    role: `%${role.toLowerCase()}%`,
+                });
+            }
+        }
+
+        const sortColumnMap = {
+            username: 'user.username',
+            email: 'user.email',
+            role: 'user.role',
+            created_at: 'user.created_at',
+        } as const;
+
+        qb.orderBy(sortColumnMap[sort_by], sort_desc === 'true' ? 'DESC' : 'ASC');
+
+        const [users, filtered] = await qb.getManyAndCount();
+
+        return {
+            total,
+            filtered,
+            users: users.map((user) => this.toAdminUser(user)),
+        };
     }
 
     async getMutedUsers() {
-        return this.userRepo.find({
+        const users = await this.userRepo.find({
             where: { is_chat_muted: true },
-            select: ['id', 'username', 'email', 'role'],
         });
+        return users.map((user) => this.toAdminUser(user));
     }
 
-    async updateUser(id: number, data: { role?: string; is_chat_muted?: boolean }) {
+    async updateUser(id: number, data: { role?: string; is_chat_muted?: boolean; status?: string }) {
         const user = await this.userRepo.findOne({ where: { id } });
         if (!user) throw new NotFoundException('User not found');
         Object.assign(user, data);
-        return this.userRepo.save(user);
+        const saved = await this.userRepo.save(user);
+        return this.toAdminUser(saved);
     }
 
-    async deleteUser(id: number) {
+    async bulkAction(dto: BulkUserActionDto) {
+        const users = await this.userRepo.find({
+            where: dto.user_ids.map((id) => ({ id })),
+        });
+
+        if (users.length === 0) {
+            throw new NotFoundException('Users not found');
+        }
+
+        switch (dto.action) {
+            case BulkUserAction.BAN: {
+                for (const user of users) {
+                    if (!this.hasRole(user.role, 'banned')) {
+                        user.role = this.appendRole(user.role, 'banned');
+                    }
+                    user.status = 'banned';
+                }
+                await this.userRepo.save(users);
+                return { success: true, affected: users.length };
+            }
+            case BulkUserAction.UNBAN: {
+                for (const user of users) {
+                    user.role = this.removeRole(user.role, 'banned') || 'user';
+                    if (user.status === 'banned') {
+                        user.status = 'offline';
+                    }
+                }
+                await this.userRepo.save(users);
+                return { success: true, affected: users.length };
+            }
+            case BulkUserAction.DELETE: {
+                await this.userRepo.remove(users);
+                return { success: true, affected: users.length };
+            }
+            case BulkUserAction.CHANGE_ROLE: {
+                if (!dto.role?.trim()) {
+                    throw new BadRequestException('Role is required for change_role action');
+                }
+                for (const user of users) {
+                    user.role = dto.role.trim();
+                }
+                await this.userRepo.save(users);
+                return { success: true, affected: users.length };
+            }
+            default:
+                throw new BadRequestException('Unsupported bulk action');
+        }
+    }
+
+    async deleteUser(id: number, actorUserId?: number) {
+        if (actorUserId && actorUserId === id) {
+            throw new BadRequestException('Self-delete is not allowed');
+        }
         const user = await this.userRepo.findOne({ where: { id } });
         if (!user) throw new NotFoundException('User not found');
         await this.userRepo.remove(user);
@@ -93,5 +196,48 @@ export class AdminService {
         await this.teamRepo.delete(id);
 
         return { message: 'Team deleted successfully' };
+    }
+
+    private toAdminUser(user: User) {
+        return {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            created_at: user.created_at,
+            avatar_url: user.user_avatar_url ?? null,
+            banner_color: user.banner_color ?? null,
+            github_username: user.github_username ?? null,
+            last_seen_at: user.last_seen_at ?? null,
+            is_chat_muted: user.is_chat_muted,
+        };
+    }
+
+    private hasRole(roles: string, targetRole: string) {
+        return roles
+            .split(',')
+            .map((role) => role.trim())
+            .filter(Boolean)
+            .includes(targetRole);
+    }
+
+    private appendRole(roles: string, targetRole: string) {
+        const roleSet = new Set(
+            roles
+                .split(',')
+                .map((role) => role.trim())
+                .filter(Boolean),
+        );
+        roleSet.add(targetRole);
+        return Array.from(roleSet).join(',');
+    }
+
+    private removeRole(roles: string, targetRole: string) {
+        return roles
+            .split(',')
+            .map((role) => role.trim())
+            .filter((role) => role && role !== targetRole)
+            .join(',');
     }
 }
