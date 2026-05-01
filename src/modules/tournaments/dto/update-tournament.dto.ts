@@ -1,9 +1,11 @@
 import {
+    IsArray,
     IsDateString,
     IsEnum,
     IsInt,
     IsOptional,
     IsString,
+    IsUrl,
     Max,
     Min,
     MinLength,
@@ -96,4 +98,25 @@ export class UpdateTournamentDto {
     @IsOptional()
     @IsInt()
     elo_winner?: number | null;
+
+    @IsOptional()
+    @IsArray()
+    @IsInt({ each: true })
+    jury_ids?: number[] | null;
+
+    @IsOptional()
+    @IsString()
+    github_url?: string | null;
+
+    @IsOptional()
+    @IsString()
+    github_branch?: string | null;
+
+    @IsOptional()
+    @IsString()
+    live_demo_url?: string | null;
+
+    @IsOptional()
+    @IsString()
+    video_url?: string | null;
 }

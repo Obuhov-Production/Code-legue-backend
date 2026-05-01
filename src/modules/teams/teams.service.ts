@@ -104,11 +104,24 @@ export class TeamsService {
         try {
             const saved = await this.teamRepo.save(team);
 
+            // Save initial members to memberRepo
+            if (dto.members && dto.members.length > 0) {
+                const newMembers = dto.members.map((m) =>
+                    this.memberRepo.create({
+                        team: saved,
+                        tournament: tournament,
+                        fullName: m.fullName ?? m.full_name ?? '',
+                        email: m.email ?? '',
+                        user_id: m.user_id ?? null,
+                    }),
+                );
+                await this.memberRepo.save(newMembers);
+            }
+
             // Auto-add captain and platform-linked members to team chat
             const membersToAdd: number[] = [captainId];
-            const dtoAny = dto as any;
-            if (dtoAny.members) {
-                for (const m of dtoAny.members as any[]) {
+            if (dto.members) {
+                for (const m of dto.members) {
                     if (m.user_id) membersToAdd.push(m.user_id);
                 }
             }
