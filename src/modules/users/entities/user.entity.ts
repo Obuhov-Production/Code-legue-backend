@@ -93,8 +93,8 @@ export class User {
     @CreateDateColumn()
     created_at: Date;
 
-    @UpdateDateColumn()
-    username_updated_at: Date;
+    @Column({ type: 'datetime', nullable: true })
+    username_updated_at: Date | null;
 
     @OneToMany(() => Tournament, (tournament) => tournament.created_by)
     tournaments: Tournament[];

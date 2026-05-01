@@ -76,7 +76,7 @@ export class UsersController {
 
   @Post('me/avatar')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file', {
+  @UseInterceptors(FileInterceptor('avatar', {
     storage: memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
   }))
@@ -89,7 +89,7 @@ export class UsersController {
 
   @Post('me/banner')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file', {
+  @UseInterceptors(FileInterceptor('banner', {
     storage: memoryStorage(),
     limits: { fileSize: 8 * 1024 * 1024 },
   }))

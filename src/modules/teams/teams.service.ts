@@ -49,7 +49,17 @@ export class TeamsService {
             .map((m) => m.team)
             .filter((t) => t && !captainIds.has(t.id));
 
-        return [...captainTeams, ...memberTeams];
+        return [...captainTeams, ...memberTeams].map((t) => ({
+            id: t.id,
+            name: t.name,
+            city: t.city,
+            school: t.school,
+            telegram_username: t.telegram_username,
+            captain_id: t.captain_id,
+            tournament_id: t.tournament_id,
+            tournament_name: t.tournament?.name ?? null,
+            tournament_status: t.tournament?.status ?? null,
+        }));
     }
 
     async createTeam(dto: CreateTeamDto, user: any) {
@@ -173,7 +183,16 @@ export class TeamsService {
         });
 
         if (!team) throw new NotFoundException('Team not found');
-        return team;
+
+        return {
+            ...team,
+            members: (team.members || []).map((m) => ({
+                id: m.id,
+                full_name: m.fullName,
+                email: m.email,
+                user_id: m.user_id,
+            })),
+        };
     }
 
     async updateTeam(id: number, dto: any, user: any) {

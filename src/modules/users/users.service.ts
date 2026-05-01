@@ -60,6 +60,7 @@ export class UsersService {
     }
 
     async updateMe(userId: number, dto: {
+        username?: string;
         first_name?: string;
         last_name?: string;
         middle_name?: string;
@@ -71,7 +72,11 @@ export class UsersService {
     }): Promise<Record<string, any>> {
         const user = await this.userRepository.findOne({ where: { id: userId } });
         if (!user) throw new NotFoundException('User not found');
+        const usernameChanged = dto.username && dto.username !== user.username;
         Object.assign(user, dto);
+        if (usernameChanged) {
+            user.username_updated_at = new Date();
+        }
         const saved = await this.userRepository.save(user);
 
         if (saved.first_name && saved.last_name && saved.middle_name) {

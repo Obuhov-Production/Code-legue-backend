@@ -10,16 +10,18 @@ export class AppService {
     return 'Hello World!';
   }
 
-  async getStats(): Promise<{ participants: number; tournaments: number; teams: number }> {
-    const [participants, tournaments, teams] = await Promise.all([
-      this.dataSource.query(`SELECT COUNT(*) AS cnt FROM users WHERE role != 'banned'`),
+  async getStats(): Promise<{ participants: number; tournamentsTotal: number; tournamentsFinished: number; teams: number }> {
+    const [participants, tournamentsTotal, tournamentsFinished, teams] = await Promise.all([
+      this.dataSource.query(`SELECT COUNT(*) AS cnt FROM users`),
       this.dataSource.query(`SELECT COUNT(*) AS cnt FROM tournaments`),
+      this.dataSource.query(`SELECT COUNT(*) AS cnt FROM tournaments WHERE status = 'finished'`),
       this.dataSource.query(`SELECT COUNT(*) AS cnt FROM teams`),
     ]);
     return {
-      participants: Number(participants[0].cnt),
-      tournaments: Number(tournaments[0].cnt),
-      teams: Number(teams[0].cnt),
+      participants:         Number(participants[0].cnt),
+      tournamentsTotal:     Number(tournamentsTotal[0].cnt),
+      tournamentsFinished:  Number(tournamentsFinished[0].cnt),
+      teams:                Number(teams[0].cnt),
     };
   }
 }

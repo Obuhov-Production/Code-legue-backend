@@ -10,7 +10,7 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  @Get('api/stats')
+  @Get('stats')
   getStats() {
     return this.appService.getStats();
   }

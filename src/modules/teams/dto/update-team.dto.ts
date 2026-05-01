@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsInt, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { IsArray, IsEmail, IsInt, IsOptional, IsString, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateTeamMemberDto {
@@ -11,6 +11,7 @@ export class UpdateTeamMemberDto {
     full_name?: string;
 
     @IsOptional()
+    @ValidateIf(o => !!o.email)
     @IsEmail()
     email?: string;
 
