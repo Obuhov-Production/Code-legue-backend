@@ -136,8 +136,8 @@ export class ApplicationsService {
             message,
             icon:
                 status === ApplicationStatus.APPROVED
-                    ? 'check-circle'
-                    : 'x-circle',
+                    ? '✅'
+                    : '❌',
             link_tab: 'applications',
         });
 
