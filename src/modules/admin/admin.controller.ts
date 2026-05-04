@@ -70,4 +70,17 @@ export class AdminController {
     deleteTeam(@Param('id', ParseIntPipe) id: number) {
         return this.adminService.deleteTeam(id);
     }
+
+    @Get('chat/settings/:room')
+    getChatSettings(@Param('room') room: string) {
+        return this.adminService.getChatSettings(room);
+    }
+
+    @Patch('chat/settings/:room')
+    updateChatSettings(
+        @Param('room') room: string,
+        @Body() body: { locked?: number; time_from?: string | null; time_to?: string | null },
+    ) {
+        return this.adminService.updateChatSettings(room, body);
+    }
 }

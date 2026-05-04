@@ -1,7 +1,11 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ChatMessagesService } from './chat-messages.service';
 import { ChatReactionsService } from '../chat-reactions/chat-reactions.service';
 import { ChatPinnedService } from '../chat-pinned/chat-pinned.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../users/enums/UserRole.enum';
 
 @Controller()
 export class ChatLegacyController {
@@ -29,5 +33,12 @@ export class ChatLegacyController {
     @Get('chat/custom-rooms')
     getCustomRooms() {
         return this.chatMessagesService.getCustomRooms();
+    }
+
+    @Delete('chat/:room/clear')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    clearRoom(@Param('room') room: string) {
+        return this.chatMessagesService.clearRoom(room);
     }
 }

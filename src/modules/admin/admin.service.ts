@@ -5,6 +5,7 @@ import { User } from '../users/entities/user.entity';
 import { Tournament } from '../tournaments/entities/tournament.entity';
 import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
+import { ChatRoomSettings } from '../chat-room-settings/entities/chat-room-setting.entity';
 import * as bcrypt from 'bcrypt';
 import { BulkUserAction, BulkUserActionDto } from './dto/bulk-user-action.dto';
 import { SearchUsersDto } from './dto/search-users.dto';
@@ -16,6 +17,7 @@ export class AdminService {
         @InjectRepository(Tournament) private readonly tournamentRepo: Repository<Tournament>,
         @InjectRepository(Team) private readonly teamRepo: Repository<Team>,
         @InjectRepository(Submission) private readonly submissionRepo: Repository<Submission>,
+        @InjectRepository(ChatRoomSettings) private readonly chatSettingsRepo: Repository<ChatRoomSettings>,
     ) {}
 
     async getStats() {
@@ -182,6 +184,20 @@ export class AdminService {
                 tournament: true,
             },
         });
+    }
+
+    async getChatSettings(room: string) {
+        const settings = await this.chatSettingsRepo.findOne({ where: { room } });
+        return settings ?? { room, locked: 0, time_from: null, time_to: null };
+    }
+
+    async updateChatSettings(room: string, data: { locked?: number; time_from?: string | null; time_to?: string | null }) {
+        let settings = await this.chatSettingsRepo.findOne({ where: { room } });
+        if (!settings) {
+            settings = this.chatSettingsRepo.create({ room, locked: 0, time_from: null, time_to: null });
+        }
+        Object.assign(settings, data);
+        return this.chatSettingsRepo.save(settings);
     }
 
     async deleteTeam(id: number) {
