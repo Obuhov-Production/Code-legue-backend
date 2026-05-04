@@ -45,6 +45,12 @@ export class Evaluation {
     @Column('int')
     total_score: number;
 
+    @Column('simple-json', { nullable: true })
+    criteria: Record<string, number> | null;
+
     @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
+
+    @CreateDateColumn({ type: 'datetime' })
+    evaluated_at: Date;
 }

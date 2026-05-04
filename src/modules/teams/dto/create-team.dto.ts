@@ -1,10 +1,31 @@
 import {
+    IsArray,
     IsInt,
     IsOptional,
     IsString,
     MaxLength,
     MinLength,
+    ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CreateTeamMemberDto {
+    @IsOptional()
+    @IsString()
+    fullName?: string;
+
+    @IsOptional()
+    @IsString()
+    full_name?: string;
+
+    @IsOptional()
+    @IsString()
+    email?: string;
+
+    @IsOptional()
+    @IsInt()
+    user_id?: number;
+}
 
 export class CreateTeamDto {
     @IsString()
@@ -34,4 +55,10 @@ export class CreateTeamDto {
     @IsString()
     @MaxLength(50)
     telegram_username?: string;
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateTeamMemberDto)
+    members?: CreateTeamMemberDto[];
 }

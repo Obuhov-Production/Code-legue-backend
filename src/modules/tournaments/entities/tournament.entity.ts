@@ -55,6 +55,15 @@ export class Tournament {
     @Column({ type: 'text', nullable: true })
     prize: string | null;
 
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    emoji: string | null;
+
+    @Column({ type: 'text', nullable: true })
+    tz: string | null;
+
+    @Column({ type: 'boolean', default: false })
+    tz_enabled: boolean;
+
     @Column({
         type: 'enum',
         enum: TournamentStatus,
@@ -85,6 +94,15 @@ export class Tournament {
 
     @Column({ type: 'int' })
     max_team_size: number;
+
+    @Column({ type: 'int', nullable: true })
+    elo_participation: number | null;
+
+    @Column({ type: 'int', nullable: true })
+    elo_per_round: number | null;
+
+    @Column({ type: 'int', nullable: true })
+    elo_winner: number | null;
 
     @ManyToOne(() => User, { onDelete: 'SET NULL' })
     @JoinColumn({ name: 'created_by' })

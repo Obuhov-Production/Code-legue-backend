@@ -1,6 +1,6 @@
 export enum RoundStatus {
     DRAFT = 'draft',
     ACTIVE = 'active',
-    SUBMISSION_CLOSED = 'SubmissionClosed',
-    EVALUATED = 'Evaluated',
+    SUBMISSION_CLOSED = 'submission_closed',
+    EVALUATED = 'evaluated',
 }

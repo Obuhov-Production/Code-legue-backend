@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Patch, Req, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, ParseIntPipe, Patch, Req, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -20,5 +20,10 @@ export class NotificationsController {
     @Patch('read-all')
     markAllRead(@Req() req: any) {
         return this.notificationsService.markAllRead(req.user.userId);
+    }
+
+    @Delete(':id')
+    remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+        return this.notificationsService.remove(id, req.user.userId);
     }
 }

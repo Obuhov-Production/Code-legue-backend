@@ -2,7 +2,7 @@ import { IsOptional, IsString, Matches } from 'class-validator';
 
 const GITHUB_REPO_REGEX = /^https:\/\/github\.com\/[^/]+\/[^/]+\/?$/i;
 
-export class CreateSubmissionDto {
+export class UpsertTeamRepositoryDto {
     @IsString()
     @Matches(GITHUB_REPO_REGEX, { message: 'github_repo_url must be a valid GitHub repository URL' })
     github_repo_url: string;
@@ -11,14 +11,15 @@ export class CreateSubmissionDto {
     @IsString()
     github_branch?: string;
 
-    @IsString()
-    pitch_video_url: string;
-
     @IsOptional()
     @IsString()
     live_demo_url?: string;
 
     @IsOptional()
     @IsString()
-    description?: string;
+    pitch_video_url?: string;
+
+    @IsOptional()
+    @IsString()
+    documentation_url?: string;
 }

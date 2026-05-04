@@ -1,6 +1,7 @@
 import {Injectable, NestMiddleware, UnauthorizedException} from "@nestjs/common";
 import {AuthService} from "../modules/auth/auth.service";
 import {NextFunction} from "express";
+import type { Request, Response } from 'express';
 
 @Injectable()
 export class RefreshAccessTokenMiddleware implements NestMiddleware {
@@ -21,7 +22,10 @@ export class RefreshAccessTokenMiddleware implements NestMiddleware {
         }
 
         try {
-            this.authService.verifyAccessToken(accessToken);
+            const payload = this.authService.verifyAccessToken(accessToken);
+            if (payload?.userId) {
+                await this.authService.touchUserActivity(payload.userId);
+            }
             return next();
         } catch (err) {
             if (err.name === 'TokenExpiredError') {
@@ -30,6 +34,10 @@ export class RefreshAccessTokenMiddleware implements NestMiddleware {
                         await this.authService.refresh(refreshToken);
 
                     req.headers['authorization'] = `Bearer ${newAccessToken}`;
+                    const payload = this.authService.verifyAccessToken(newAccessToken);
+                    if (payload?.userId) {
+                        await this.authService.touchUserActivity(payload.userId);
+                    }
                 } catch(err) {
                     throw new UnauthorizedException('Invalid refresh token');
                 }
