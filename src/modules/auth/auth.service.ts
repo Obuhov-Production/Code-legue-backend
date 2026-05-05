@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '../users/enums/UserRole.enum';
 import { PlatformUserStatus } from '../users/dto/update-status.dto';
+import { EmailVerificationService } from '../email-verification/email-verification.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +17,7 @@ export class AuthService {
         @InjectRepository(User) private authRepository: Repository<User>,
         private jwtService: JwtService,
         private configService: ConfigService,
+        private emailVerification: EmailVerificationService,
     ) {}
 
     private signTokens(payload: { userId: number; username: string; email: string; role: string }) {
@@ -52,20 +54,29 @@ export class AuthService {
             status_updated_at: now,
             github_connected: false,
             auth_provider: 'email',
+            is_email_verified: false,
+            email_verified_at: null,
         });
 
         const savedUser = await this.authRepository.save(user);
-        const payload = { userId: savedUser.id, username: savedUser.username, email: savedUser.email, role: savedUser.role };
-        const tokens = this.signTokens(payload);
+
+        // Email verification: код + лист, повертаємо pendingToken (НЕ повертаємо JWT)
+        const { pendingToken, expiresInSec } = await this.emailVerification.issueAndSendCode(savedUser);
         const { password, ...userData } = savedUser;
 
-        return { user: userData, ...tokens };
+        return {
+            requiresVerification: true,
+            pendingToken,
+            expiresInSec,
+            email: savedUser.email,
+            user: userData,
+        };
     }
 
     async login(dto: LoginUserDto) {
         const user = await this.authRepository.findOne({
             where: { email: dto.email },
-            select: ['id', 'username', 'email', 'password', 'role'],
+            select: ['id', 'username', 'email', 'password', 'role', 'is_email_verified'],
         });
 
         if (!user) {
@@ -77,6 +88,28 @@ export class AuthService {
             throw new UnauthorizedException('Invalid email or password');
         }
 
+        // Якщо існуючий акаунт не підтверджений — вимагаємо код
+        if (!user.is_email_verified) {
+            const { pendingToken, expiresInSec } = await this.emailVerification.issueAndSendCode(user);
+            return {
+                requiresVerification: true,
+                pendingToken,
+                expiresInSec,
+                email: user.email,
+            };
+        }
+
+        const payload = { userId: user.id, username: user.username, email: user.email, role: user.role };
+        const tokens = this.signTokens(payload);
+        const { password, ...userData } = user;
+        return { user: userData, ...tokens };
+    }
+
+    /**
+     * Викликається після успішного підтвердження коду.
+     * Повертає реальні JWT-токени.
+     */
+    issueTokensForVerifiedUser(user: User) {
         const payload = { userId: user.id, username: user.username, email: user.email, role: user.role };
         const tokens = this.signTokens(payload);
         const { password, ...userData } = user;
@@ -92,7 +125,10 @@ export class AuthService {
         githubId?: string;
         githubUsername?: string | null;
         githubToken?: string | null;
-    }): Promise<{ token: string; accessToken: string; refreshToken: string; user: Omit<User, 'password'> }> {
+    }): Promise<
+        | { token: string; accessToken: string; refreshToken: string; user: Omit<User, 'password'>; requiresVerification?: false }
+        | { requiresVerification: true; pendingToken: string; expiresInSec: number; email: string }
+    > {
         const {
             email,
             username,
@@ -156,8 +192,23 @@ export class AuthService {
                 discordId: discordId ?? undefined,
                 githubId: githubId ?? undefined,
                 user_avatar_url: avatarUrl ?? undefined,
+                // Новостворений OAuth-юзер: пошта ще НЕ підтверджена
+                is_email_verified: false,
+                email_verified_at: null,
             };
             user = await this.authRepository.save(this.authRepository.create(partial));
+        }
+
+        // Якщо акаунт не підтверджений (новий або раніше залишений недопідтвердженим) —
+        // надсилаємо код і повертаємо pending. Інакше — звичайні токени.
+        if (!user.is_email_verified) {
+            const { pendingToken, expiresInSec } = await this.emailVerification.issueAndSendCode(user);
+            return {
+                requiresVerification: true,
+                pendingToken,
+                expiresInSec,
+                email: user.email,
+            };
         }
 
         const payload = { userId: user.id, username: user.username, email: user.email, role: user.role };

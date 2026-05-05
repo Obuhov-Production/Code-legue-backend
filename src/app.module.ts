@@ -33,11 +33,13 @@ import { ContactModule } from './modules/contact/contact.module';
 import { PublicModule } from './modules/public/public.module';
 import {RefreshAccessTokenMiddleware} from "./middleware/refresh-token.middleware";
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { MailModule } from './modules/mail/mail.module';
+import { EmailVerificationModule } from './modules/email-verification/email-verification.module';
 
 
 
 @Module({
-  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule /* , UploadsModule */, ReviewsModule, ApplicationsModule, NotificationsModule, BadgesModule, AiModule, ContactModule, PublicModule, WebhooksModule],
+  imports: [UsersModule, TournamentsModule, DatabaseModule, TeamsModule, TeamMembersModule, TasksModule, SubmissionsModule, RoundsModule, JuryAssignmentsModule, EvaluationModule, EvaluationScoresModule, EvaluationCriteriaModule, ChatRoomModule, ChatRoomSettingsModule, ChatReactionsModule, ChatPinnedModule, ChatMessagesModule, AnnouncementsModule, AuthModule, SeedModule, AdminModule, JuryModule /* , UploadsModule */, ReviewsModule, ApplicationsModule, NotificationsModule, BadgesModule, AiModule, ContactModule, PublicModule, WebhooksModule, MailModule, EmailVerificationModule],
   controllers: [AppController],
   providers: [AppService],
 })

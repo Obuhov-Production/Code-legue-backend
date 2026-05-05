@@ -8,7 +8,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { DiscordStrategy } from './strategies/discord.strategy';
-import {GithubStrategy} from "./strategies/github.strategy";
+import { GithubStrategy } from './strategies/github.strategy';
+import { EmailVerificationModule } from '../email-verification/email-verification.module';
 
 @Module({
     imports: [
@@ -21,6 +22,7 @@ import {GithubStrategy} from "./strategies/github.strategy";
                 signOptions: { expiresIn: '2h' },
             }),
         }),
+        EmailVerificationModule,
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy, GoogleStrategy, DiscordStrategy, GithubStrategy],

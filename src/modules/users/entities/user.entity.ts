@@ -69,6 +69,17 @@ export class User {
     @Column({ type: 'varchar', length: 20, default: 'email' })
     auth_provider: string;
 
+    /**
+     * Чи підтверджена пошта.
+     * default: true — щоб усі ВЖЕ створені до фічі акаунти не вимагали верифікації.
+     * Для НОВИХ записів (register/OAuth перший вхід) явно ставимо false.
+     */
+    @Column({ type: 'boolean', default: true })
+    is_email_verified: boolean;
+
+    @Column({ type: 'datetime', nullable: true })
+    email_verified_at: Date | null;
+
     @Column({ nullable: true })
     githubId?: string;
 
