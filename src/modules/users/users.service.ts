@@ -1,18 +1,117 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PlatformUserStatus } from './dto/update-status.dto';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
 import { Badge } from '../badges/entities/badge.entity';
+import { MailService } from '../mail/mail.service';
+
+const PWD_CODE_TTL_MIN = 10;
+const PWD_RESEND_COOLDOWN_SEC = 45;
+const PWD_MAX_ATTEMPTS = 6;
 
 @Injectable()
 export class UsersService {
+    private readonly logger = new Logger(UsersService.name);
+
     constructor(
         @InjectRepository(User) private userRepository: Repository<User>,
         @InjectRepository(Badge) private badgeRepository: Repository<Badge>,
+        private readonly mail: MailService,
     ) {}
+
+    async requestPasswordChange(userId: number) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new NotFoundException('User not found');
+        if (!user.email) throw new BadRequestException('Account has no email on file');
+
+        if (user.password_change_last_sent_at) {
+            const since = Date.now() - new Date(user.password_change_last_sent_at).getTime();
+            if (since < PWD_RESEND_COOLDOWN_SEC * 1000) {
+                const wait = Math.ceil((PWD_RESEND_COOLDOWN_SEC * 1000 - since) / 1000);
+                throw new BadRequestException(`Зачекайте ${wait}с перед повторним запитом коду`);
+            }
+        }
+
+        const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+        const codeHash = await bcrypt.hash(code, 8);
+        const now = new Date();
+        user.password_change_code_hash = codeHash;
+        user.password_change_expires_at = new Date(now.getTime() + PWD_CODE_TTL_MIN * 60_000);
+        user.password_change_attempts = 0;
+        user.password_change_last_sent_at = now;
+        await this.userRepository.save(user);
+
+        const subject = `Code League — код для зміни пароля ${code}`;
+        const html = `
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#fafafa;border-radius:12px">
+              <h2 style="color:#1f2937;margin:0 0 12px">Зміна пароля</h2>
+              <p style="color:#374151;font-size:14px;line-height:1.5">
+                Ви запросили зміну пароля для свого акаунту <b>${user.email}</b>.
+                Введіть цей код у вікні підтвердження. Код діє ${PWD_CODE_TTL_MIN} хв.
+              </p>
+              <div style="font-size:36px;letter-spacing:10px;font-weight:700;color:#7c5ff5;text-align:center;
+                          padding:18px;background:#fff;border:1px dashed #ddd;border-radius:10px;margin:18px 0">${code}</div>
+              <p style="color:#6b7280;font-size:12px;line-height:1.5">
+                Якщо це були не ви — проігноруйте цей лист, і пароль залишиться без змін.
+              </p>
+            </div>`;
+        const text = `Code League — код для зміни пароля: ${code}\nКод діє ${PWD_CODE_TTL_MIN} хв.\nЯкщо це не ви — проігноруйте лист.`;
+        this.mail.send({ to: user.email, subject, html, text })
+            .catch((err) => this.logger.error(`pwd-change mail failed for ${user.email}: ${err.message}`));
+
+        return { expiresInSec: PWD_CODE_TTL_MIN * 60, email: this.maskEmail(user.email) };
+    }
+
+    async confirmPasswordChange(userId: number, code: string, newPassword: string, currentPassword?: string) {
+        if (!/^\d{6}$/.test(code)) throw new BadRequestException('Невірний формат коду');
+        if (typeof newPassword !== 'string' || newPassword.length < 8) {
+            throw new BadRequestException('Новий пароль має бути не коротшим за 8 символів');
+        }
+
+        const user = await this.userRepository
+            .createQueryBuilder('user')
+            .addSelect(['user.password', 'user.password_change_code_hash'])
+            .where('user.id = :id', { id: userId })
+            .getOne();
+        if (!user) throw new NotFoundException('User not found');
+
+        if (!user.password_change_code_hash || !user.password_change_expires_at) {
+            throw new BadRequestException('Код не запитано — спочатку натисніть «Надіслати код»');
+        }
+        if (new Date() > new Date(user.password_change_expires_at)) {
+            throw new BadRequestException('Код прострочений — запитайте новий');
+        }
+        if ((user.password_change_attempts ?? 0) >= PWD_MAX_ATTEMPTS) {
+            throw new BadRequestException('Перевищено ліміт спроб — запитайте новий код');
+        }
+
+        const codeOk = await bcrypt.compare(code, user.password_change_code_hash);
+        if (!codeOk) {
+            user.password_change_attempts = (user.password_change_attempts ?? 0) + 1;
+            await this.userRepository.save(user);
+            const left = PWD_MAX_ATTEMPTS - user.password_change_attempts;
+            throw new BadRequestException(left > 0 ? `Невірний код. Залишилось спроб: ${left}` : 'Невірний код. Запитайте новий.');
+        }
+
+        if (currentPassword && user.password) {
+            const ok = await bcrypt.compare(currentPassword, user.password);
+            if (!ok) throw new UnauthorizedException('Поточний пароль невірний');
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.password_change_code_hash = null;
+        user.password_change_expires_at = null;
+        user.password_change_attempts = 0;
+        user.password_changed_at = new Date();
+        await this.userRepository.save(user);
+
+        return { message: 'Пароль успішно змінено', changed_at: user.password_changed_at };
+    }
 
     async getUserById(id: number): Promise<any> {
         const user = await this.userRepository.findOne({
@@ -200,6 +299,12 @@ export class UsersService {
         }));
     }
 
+    async getPublicProfileByUsername(username: string) {
+        const user = await this.userRepository.findOne({ where: { username } });
+        if (!user) throw new NotFoundException('User not found');
+        return this.getPublicProfile(user.id);
+    }
+
     async getPublicProfile(id: number) {
         const user = await this.userRepository
             .createQueryBuilder('user')
@@ -231,6 +336,27 @@ export class UsersService {
             ...user,
             last_seen_text: this.formatLastSeenText(user.last_seen_at),
         };
+    }
+
+    async deleteAccount(userId: number) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new NotFoundException('User not found');
+
+        const manager = this.userRepository.manager;
+        await manager.transaction(async (tx) => {
+            await tx.query('DELETE FROM badges WHERE userId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM chat_reactions WHERE userId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM chat_pinned WHERE userId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM chat_messages WHERE userId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM messages WHERE userId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM notifications WHERE userId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM jury_assignments WHERE juryId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM evaluations WHERE juryId = ?', [userId]).catch(() => {});
+            await tx.query('DELETE FROM organizer_applications WHERE userId = ?', [userId]).catch(() => {});
+            await tx.delete(User, { id: userId });
+        });
+
+        return { message: 'Account deleted' };
     }
 
     async deleteBanner(userId: number) {
@@ -294,6 +420,13 @@ export class UsersService {
             ...userData,
             last_seen_text: this.formatLastSeenText(user.last_seen_at),
         };
+    }
+
+    private maskEmail(email: string): string {
+        const [local, domain] = email.split('@');
+        if (!domain) return email;
+        if (local.length <= 2) return `${local[0]}*@${domain}`;
+        return `${local.slice(0, 2)}${'*'.repeat(Math.max(1, local.length - 3))}${local.slice(-1)}@${domain}`;
     }
 
     private formatLastSeenText(lastSeenAt: Date | null) {

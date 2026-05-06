@@ -1,4 +1,4 @@
-import {BadRequestException, Injectable, NotFoundException} from '@nestjs/common';
+import {BadRequestException, ForbiddenException, Injectable, NotFoundException} from '@nestjs/common';
 import { CreateTournamentDto } from './dto/create-tournament.dto';
 import {InjectRepository} from "@nestjs/typeorm";
 import {Tournament} from "./entities/tournament.entity";
@@ -98,7 +98,29 @@ export class TournamentsService {
         return saved.id;
     }
 
-    async update(id: number, dto: UpdateTournamentDto) {
+    /** Admins may edit anyone's tournament; organizers only their own. */
+    private async assertCanEdit(tournamentId: number, user: { userId?: number; role?: string }) {
+        const tournament = await this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+            relations: { created_by: true },
+        });
+        if (!tournament) throw new NotFoundException('Tournament not found');
+
+        const roles = (user?.role || '').toLowerCase().split(',').map((r) => r.trim());
+        if (roles.includes('admin')) return tournament;
+
+        const ownerId = tournament.created_by_id ?? tournament.created_by?.id ?? null;
+        if (!ownerId || ownerId !== user?.userId) {
+            throw new ForbiddenException(
+                'Редагувати цей турнір може лише організатор, який його створив, або адміністратор',
+            );
+        }
+        return tournament;
+    }
+
+    async update(id: number, dto: UpdateTournamentDto, user: { userId?: number; role?: string }) {
+        await this.assertCanEdit(id, user);
+
         const payload: any = { ...dto };
         if (dto.start_date) payload.start_date = new Date(dto.start_date);
         if (dto.end_date) payload.end_date = new Date(dto.end_date);
@@ -114,12 +136,8 @@ export class TournamentsService {
         return { success: true };
     }
 
-    async updateStatus(id: number, status: TournamentStatus) {
-        const tournament = await this.tournamentRepository.findOne({ where: { id } });
-
-        if (!tournament) {
-            throw new NotFoundException('Tournament not found');
-        }
+    async updateStatus(id: number, status: TournamentStatus, user: { userId?: number; role?: string }) {
+        const tournament = await this.assertCanEdit(id, user);
 
         const allowAny = process.env.ALLOW_WRITE_TOURNAMENT_STATUS === 'true';
         if (!allowAny) {
@@ -177,7 +195,9 @@ export class TournamentsService {
         }));
     }
 
-    async delete(id: number) {
+    async delete(id: number, user: { userId?: number; role?: string }) {
+        await this.assertCanEdit(id, user);
+
         const result = await this.tournamentRepository.delete({ id });
 
         if (result.affected === 0) {

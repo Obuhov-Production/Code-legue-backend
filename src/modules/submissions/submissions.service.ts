@@ -26,6 +26,44 @@ export class SubmissionsService {
         @InjectRepository(TeamMember) private readonly teamMemberRepo: Repository<TeamMember>,
     ) {}
 
+    /**
+     * Daily submission counts for the last N days (UTC).
+     * Returns: [{ date: 'YYYY-MM-DD', count: number, drafts: number, submitted: number }, ...]
+     * Always returns N rows even for days with no submissions (zero-fill).
+     * "When did a submission happen" = submitted_at if set, otherwise updated_at.
+     */
+    async getDailyStats(days: number) {
+        const since = new Date();
+        since.setUTCHours(0, 0, 0, 0);
+        since.setUTCDate(since.getUTCDate() - (days - 1));
+
+        const subs = await this.submissionRepo
+            .createQueryBuilder('s')
+            .select(['s.id', 's.status', 's.submitted_at', 's.updated_at'])
+            .where('COALESCE(s.submitted_at, s.updated_at) >= :since', { since })
+            .getMany();
+
+        const buckets = new Map<string, { count: number; drafts: number; submitted: number }>();
+        for (let i = 0; i < days; i++) {
+            const d = new Date(since);
+            d.setUTCDate(since.getUTCDate() + i);
+            buckets.set(d.toISOString().slice(0, 10), { count: 0, drafts: 0, submitted: 0 });
+        }
+
+        for (const s of subs) {
+            const when = (s.submitted_at ?? s.updated_at) as Date | null;
+            if (!when) continue;
+            const key = new Date(when).toISOString().slice(0, 10);
+            const b = buckets.get(key);
+            if (!b) continue;
+            b.count += 1;
+            if (String(s.status).toLowerCase() === 'draft') b.drafts += 1;
+            else b.submitted += 1;
+        }
+
+        return Array.from(buckets.entries()).map(([date, v]) => ({ date, ...v }));
+    }
+
     async getTeamSubmissions(teamId: number, user: any) {
         await this.assertTeamAccess(teamId, user);
         const submissions = await this.submissionRepo.find({

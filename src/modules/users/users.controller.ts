@@ -61,6 +61,11 @@ export class UsersController {
   }
 
 
+  @Get('by-username/:username')
+  async getUserByUsername(@Param('username') username: string) {
+    return this.usersService.getPublicProfileByUsername(username);
+  }
+
   @Get(':id')
   async getUserProfile(
       @Param('id', ParseIntPipe) id: number,
@@ -72,6 +77,35 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   async deleteMyBanner(@Req() req) {
     return this.usersService.deleteBanner(req.user.userId);
+  }
+
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  async deleteMyAccount(@Req() req: any) {
+    return this.usersService.deleteAccount(req.user.userId);
+  }
+
+  @Post('me/password/request')
+  @UseGuards(JwtAuthGuard)
+  async requestPasswordChange(@Req() req: any) {
+    return this.usersService.requestPasswordChange(req.user.userId);
+  }
+
+  @Post('me/password/confirm')
+  @UseGuards(JwtAuthGuard)
+  async confirmPasswordChange(
+    @Req() req: any,
+    @Body() body: { code?: string; newPassword?: string; currentPassword?: string },
+  ) {
+    if (!body?.code || !body?.newPassword) {
+      throw new BadRequestException('Code and new password are required');
+    }
+    return this.usersService.confirmPasswordChange(
+      req.user.userId,
+      String(body.code).trim(),
+      String(body.newPassword),
+      body.currentPassword ? String(body.currentPassword) : undefined,
+    );
   }
 
   @Post('me/avatar')

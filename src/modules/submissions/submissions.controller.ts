@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
@@ -9,6 +9,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('submissions')
 export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
+
+  @Get('/stats/daily')
+  @UseGuards(JwtAuthGuard)
+  getDailyStats(@Query('days') daysRaw?: string) {
+    const days = Math.min(90, Math.max(1, parseInt(daysRaw || '7', 10) || 7));
+    return this.submissionsService.getDailyStats(days);
+  }
 
   @Get('/teams/:teamId')
   @UseGuards(JwtAuthGuard)

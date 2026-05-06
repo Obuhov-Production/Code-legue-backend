@@ -107,6 +107,21 @@ export class User {
     @Column({ type: 'datetime', nullable: true })
     username_updated_at: Date | null;
 
+    @Column({ type: 'varchar', length: 255, nullable: true, select: false })
+    password_change_code_hash: string | null;
+
+    @Column({ type: 'datetime', nullable: true })
+    password_change_expires_at: Date | null;
+
+    @Column({ type: 'int', default: 0 })
+    password_change_attempts: number;
+
+    @Column({ type: 'datetime', nullable: true })
+    password_change_last_sent_at: Date | null;
+
+    @Column({ type: 'datetime', nullable: true })
+    password_changed_at: Date | null;
+
     @OneToMany(() => Tournament, (tournament) => tournament.created_by)
     tournaments: Tournament[];
 

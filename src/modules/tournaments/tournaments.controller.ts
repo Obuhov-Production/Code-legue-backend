@@ -40,14 +40,14 @@ export class TournamentsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  update(@Param('id') id: string, @Body() dto: UpdateTournamentDto) {
-    return this.tournamentsService.update(Number(id), dto);
+  update(@Param('id') id: string, @Body() dto: UpdateTournamentDto, @Req() req: Request) {
+    return this.tournamentsService.update(Number(id), dto, req.user as any);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  delete(@Param('id') id: string) {
-    return this.tournamentsService.delete(Number(id));
+  delete(@Param('id') id: string, @Req() req: Request) {
+    return this.tournamentsService.delete(Number(id), req.user as any);
   }
 
   @Patch(':id/status')
@@ -55,7 +55,8 @@ export class TournamentsController {
   updateStatus(
       @Param('id') id: string,
       @Body('status') status: TournamentStatus,
+      @Req() req: Request,
   ) {
-    return this.tournamentsService.updateStatus(Number(id), status);
+    return this.tournamentsService.updateStatus(Number(id), status, req.user as any);
   }
 }
