@@ -102,7 +102,7 @@ export class AuthController {
     /**
      * Загальний обробник OAuth-редіректів (Google/GitHub/Discord).
      * - Якщо акаунт верифікований → редірект на /login?oauth=success&token=...&user=...
-     * - Якщо ні (новий або не підтверджений) → /verify-email?pending=...&email=...
+     * - Якщо ні (новий або не підтверджений) → /login?pending=...&email=...
      */
     private handleOAuthRedirect(req: Request, res: Response) {
         const result = req.user as any;
@@ -115,7 +115,7 @@ export class AuthController {
                 expiresIn: String(result.expiresInSec ?? 600),
                 source: 'oauth',
             });
-            return res.redirect(`${frontendUrl}/verify-email?${params.toString()}`);
+            return res.redirect(`${frontendUrl}/login?${params.toString()}`);
         }
 
         const { token, user } = result;
