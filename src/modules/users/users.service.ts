@@ -67,6 +67,42 @@ export class UsersService {
         return { expiresInSec: PWD_CODE_TTL_MIN * 60, email: this.maskEmail(user.email) };
     }
 
+    /**
+     * Перевірити код БЕЗ зміни пароля. Використовується на проміжному кроці UI:
+     * юзер ввів код → ми валідуємо → відкриваємо форму нового пароля.
+     * Невірний код збільшує лічильник спроб (як у confirmPasswordChange).
+     */
+    async verifyPasswordChangeCode(userId: number, code: string) {
+        if (!/^\d{6}$/.test(code)) throw new BadRequestException('Невірний формат коду');
+
+        const user = await this.userRepository
+            .createQueryBuilder('user')
+            .addSelect(['user.password_change_code_hash'])
+            .where('user.id = :id', { id: userId })
+            .getOne();
+        if (!user) throw new NotFoundException('User not found');
+
+        if (!user.password_change_code_hash || !user.password_change_expires_at) {
+            throw new BadRequestException('Код не запитано — спочатку натисніть «Надіслати код»');
+        }
+        if (new Date() > new Date(user.password_change_expires_at)) {
+            throw new BadRequestException('Код прострочений — запитайте новий');
+        }
+        if ((user.password_change_attempts ?? 0) >= PWD_MAX_ATTEMPTS) {
+            throw new BadRequestException('Перевищено ліміт спроб — запитайте новий код');
+        }
+
+        const ok = await bcrypt.compare(code, user.password_change_code_hash);
+        if (!ok) {
+            user.password_change_attempts = (user.password_change_attempts ?? 0) + 1;
+            await this.userRepository.save(user);
+            const left = PWD_MAX_ATTEMPTS - user.password_change_attempts;
+            throw new BadRequestException(left > 0 ? `Невірний код. Залишилось спроб: ${left}` : 'Невірний код. Запитайте новий.');
+        }
+
+        return { ok: true };
+    }
+
     async confirmPasswordChange(userId: number, code: string, newPassword: string, currentPassword?: string) {
         if (!/^\d{6}$/.test(code)) throw new BadRequestException('Невірний формат коду');
         if (typeof newPassword !== 'string' || newPassword.length < 8) {

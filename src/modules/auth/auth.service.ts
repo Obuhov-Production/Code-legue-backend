@@ -10,6 +10,12 @@ import { ConfigService } from '@nestjs/config';
 import { UserRole } from '../users/enums/UserRole.enum';
 import { PlatformUserStatus } from '../users/dto/update-status.dto';
 import { EmailVerificationService } from '../email-verification/email-verification.service';
+import { MailService } from '../mail/mail.service';
+import { randomInt } from 'crypto';
+
+const FP_CODE_TTL_MIN = 10;
+const FP_RESEND_COOLDOWN_SEC = 45;
+const FP_MAX_ATTEMPTS = 6;
 
 @Injectable()
 export class AuthService {
@@ -18,7 +24,107 @@ export class AuthService {
         private jwtService: JwtService,
         private configService: ConfigService,
         private emailVerification: EmailVerificationService,
+        private mail: MailService,
     ) {}
+
+    /* ── Forgot password (no auth) ───────────────────────────────────── */
+
+    /**
+     * Не розкриваємо чи існує email — повертаємо ту ж відповідь незалежно від результату.
+     * Перевикористовуємо колонки password_change_* з User entity.
+     */
+    async forgotPasswordRequest(email: string) {
+        const generic = { ok: true, expiresInSec: FP_CODE_TTL_MIN * 60 };
+        if (!email || typeof email !== 'string') return generic;
+
+        const user = await this.authRepository.findOne({ where: { email } });
+        if (!user) return generic;
+
+        if (user.password_change_last_sent_at) {
+            const since = Date.now() - new Date(user.password_change_last_sent_at).getTime();
+            if (since < FP_RESEND_COOLDOWN_SEC * 1000) {
+                const wait = Math.ceil((FP_RESEND_COOLDOWN_SEC * 1000 - since) / 1000);
+                throw new BadRequestException(`Зачекайте ${wait}с перед повторним запитом коду`);
+            }
+        }
+
+        const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+        const codeHash = await bcrypt.hash(code, 8);
+        const now = new Date();
+        user.password_change_code_hash = codeHash;
+        user.password_change_expires_at = new Date(now.getTime() + FP_CODE_TTL_MIN * 60_000);
+        user.password_change_attempts = 0;
+        user.password_change_last_sent_at = now;
+        await this.authRepository.save(user);
+
+        const subject = `Code League — код для відновлення пароля ${code}`;
+        const html = `
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#fafafa;border-radius:12px">
+              <h2 style="color:#1f2937;margin:0 0 12px">Відновлення пароля</h2>
+              <p style="color:#374151;font-size:14px;line-height:1.5">
+                Ви запросили відновлення пароля для акаунту <b>${user.email}</b>.
+                Введіть цей код у вікні підтвердження. Код діє ${FP_CODE_TTL_MIN} хв.
+              </p>
+              <div style="font-size:36px;letter-spacing:10px;font-weight:700;color:#7c5ff5;text-align:center;
+                          padding:18px;background:#fff;border:1px dashed #ddd;border-radius:10px;margin:18px 0">${code}</div>
+              <p style="color:#6b7280;font-size:12px;line-height:1.5">
+                Якщо це не ви — проігноруйте лист.
+              </p>
+            </div>`;
+        const text = `Code League — код відновлення пароля: ${code}\nКод діє ${FP_CODE_TTL_MIN} хв.`;
+        this.mail.send({ to: user.email, subject, html, text }).catch(() => {});
+
+        return generic;
+    }
+
+    /** Перевірити код без зміни пароля (UI: розблокувати поле нового пароля). */
+    async forgotPasswordVerifyCode(email: string, code: string) {
+        if (!/^\d{6}$/.test(String(code ?? '').trim())) {
+            throw new BadRequestException('Невірний формат коду');
+        }
+        const user = await this.authRepository
+            .createQueryBuilder('user')
+            .addSelect(['user.password_change_code_hash'])
+            .where('user.email = :email', { email })
+            .getOne();
+        if (!user || !user.password_change_code_hash || !user.password_change_expires_at) {
+            throw new BadRequestException('Код не запитано або вже не дійсний');
+        }
+        if (new Date() > new Date(user.password_change_expires_at)) {
+            throw new BadRequestException('Код прострочений — запитайте новий');
+        }
+        if ((user.password_change_attempts ?? 0) >= FP_MAX_ATTEMPTS) {
+            throw new BadRequestException('Перевищено ліміт спроб — запитайте новий код');
+        }
+        const ok = await bcrypt.compare(String(code).trim(), user.password_change_code_hash);
+        if (!ok) {
+            user.password_change_attempts = (user.password_change_attempts ?? 0) + 1;
+            await this.authRepository.save(user);
+            const left = FP_MAX_ATTEMPTS - user.password_change_attempts;
+            throw new BadRequestException(left > 0 ? `Невірний код. Залишилось спроб: ${left}` : 'Невірний код. Запитайте новий.');
+        }
+        return { ok: true };
+    }
+
+    async forgotPasswordReset(email: string, code: string, newPassword: string) {
+        if (typeof newPassword !== 'string' || newPassword.length < 8) {
+            throw new BadRequestException('Новий пароль має бути не коротшим за 8 символів');
+        }
+        // Валідуємо код ще раз — це фінальна точка зміни
+        await this.forgotPasswordVerifyCode(email, code);
+
+        const user = await this.authRepository.findOne({ where: { email } });
+        if (!user) throw new BadRequestException('Невірний код або email');
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.password_change_code_hash = null;
+        user.password_change_expires_at = null;
+        user.password_change_attempts = 0;
+        user.password_changed_at = new Date();
+        await this.authRepository.save(user);
+
+        return { ok: true };
+    }
 
     private signTokens(payload: { userId: number; username: string; email: string; role: string }) {
         const accessToken = this.jwtService.sign(payload, {

@@ -96,7 +96,7 @@ export class ChatMessagesService {
     }
 
     private formatMessage(m: Message): Record<string, any> {
-        const { user, ...rest } = m as any;
+        const { user, replyTo, ...rest } = m as any;
         return {
             ...rest,
             username: user?.username ?? null,
@@ -106,6 +106,10 @@ export class ChatMessagesService {
             first_name: user?.first_name ?? null,
             last_name: user?.last_name ?? null,
             pinned_badge: user?.pinned_badge ?? null,
+            reply_text: replyTo?.text ?? null,
+            reply_file_url: replyTo?.file_url ?? null,
+            reply_username: replyTo?.user?.username ?? null,
+            reply_user_id: replyTo?.user_id ?? null,
         };
     }
 }

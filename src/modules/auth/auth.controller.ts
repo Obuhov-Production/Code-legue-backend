@@ -53,6 +53,33 @@ export class AuthController {
         return this.emailVerification.resendByPendingToken(body.pendingToken);
     }
 
+    /* ── Forgot password ──────────────────────────────── */
+
+    @Post('password/forgot')
+    forgotPasswordRequest(@Body() body: { email?: string }) {
+        return this.authService.forgotPasswordRequest(String(body?.email ?? '').trim().toLowerCase());
+    }
+
+    @Post('password/forgot/verify')
+    forgotPasswordVerify(@Body() body: { email?: string; code?: string }) {
+        return this.authService.forgotPasswordVerifyCode(
+            String(body?.email ?? '').trim().toLowerCase(),
+            String(body?.code ?? '').trim(),
+        );
+    }
+
+    @Post('password/forgot/reset')
+    forgotPasswordReset(@Body() body: { email?: string; code?: string; newPassword?: string }) {
+        if (!body?.email || !body?.code || !body?.newPassword) {
+            throw new UnauthorizedException('email, code, newPassword required');
+        }
+        return this.authService.forgotPasswordReset(
+            String(body.email).trim().toLowerCase(),
+            String(body.code).trim(),
+            String(body.newPassword),
+        );
+    }
+
     /* ── Google OAuth ─────────────────────────────────── */
 
     @Get('google')

@@ -10,6 +10,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { DiscordStrategy } from './strategies/discord.strategy';
 import { GithubStrategy } from './strategies/github.strategy';
 import { EmailVerificationModule } from '../email-verification/email-verification.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
     imports: [
@@ -23,6 +24,7 @@ import { EmailVerificationModule } from '../email-verification/email-verificatio
             }),
         }),
         EmailVerificationModule,
+        MailModule,
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy, GoogleStrategy, DiscordStrategy, GithubStrategy],

@@ -91,6 +91,21 @@ export class UsersController {
     return this.usersService.requestPasswordChange(req.user.userId);
   }
 
+  @Post('me/password/verify-code')
+  @UseGuards(JwtAuthGuard)
+  async verifyPasswordChangeCode(
+    @Req() req: any,
+    @Body() body: { code?: string },
+  ) {
+    if (!body?.code) {
+      throw new BadRequestException('Code is required');
+    }
+    return this.usersService.verifyPasswordChangeCode(
+      req.user.userId,
+      String(body.code).trim(),
+    );
+  }
+
   @Post('me/password/confirm')
   @UseGuards(JwtAuthGuard)
   async confirmPasswordChange(
