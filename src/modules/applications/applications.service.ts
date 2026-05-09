@@ -59,7 +59,19 @@ export class ApplicationsService {
             status: ApplicationStatus.PENDING,
         } as Partial<OrganizerApplication>);
 
-        return this.appRepo.save(application);
+        const saved = await this.appRepo.save(application);
+
+        const applicant = await this.userRepo.findOne({ where: { id: userId }, select: ['username'] });
+        const adminNotifs = await this.notificationsService.notifyAdmins(
+            `Нова заявка на організатора від ${applicant?.username ?? 'користувача'}`,
+            '🗂️',
+            'admin',
+        );
+        adminNotifs.forEach(n => {
+            try { this.chatGateway.sendToUser(n.userId, 'notification:new', n); } catch {}
+        });
+
+        return saved;
     }
 
     async getMyApplication(userId: number) {

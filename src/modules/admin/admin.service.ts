@@ -30,6 +30,28 @@ export class AdminService {
         return { users, tournaments, teams, submissions };
     }
 
+    async getUserDailyStats(days: number) {
+        const clampedDays = Math.min(Math.max(days, 1), 365);
+        const rows: Array<{ date: string; count: string }> = await this.userRepo.query(
+            `SELECT DATE(created_at) as date, COUNT(*) as count
+             FROM users
+             WHERE created_at >= DATE('now', '-' || ? || ' days')
+             GROUP BY DATE(created_at)
+             ORDER BY date ASC`,
+            [clampedDays],
+        );
+
+        const countMap = new Map(rows.map(r => [r.date, Number(r.count)]));
+        const result: Array<{ date: string; count: number }> = [];
+        for (let i = clampedDays - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            result.push({ date: key, count: countMap.get(key) ?? 0 });
+        }
+        return result;
+    }
+
     async getUsers() {
         const users = await this.userRepo.find({
             order: { created_at: 'DESC' },

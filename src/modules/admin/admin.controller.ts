@@ -20,6 +20,11 @@ export class AdminController {
         return this.adminService.getStats();
     }
 
+    @Get('users/daily-stats')
+    getUserDailyStats(@Query('days') days = '7') {
+        return this.adminService.getUserDailyStats(parseInt(days, 10) || 7);
+    }
+
     @Get('users')
     getUsers() {
         return this.adminService.getUsers();

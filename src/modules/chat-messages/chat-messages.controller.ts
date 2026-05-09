@@ -24,8 +24,16 @@ export class ChatMessagesController {
     ) {}
 
     @Get()
-    getHistoryByQuery(@Query('room') room: string) {
-        return this.chatMessagesService.findByRoom(room);
+    getHistoryByQuery(
+        @Query('room') room: string,
+        @Query('limit') limit?: string,
+        @Query('before') before?: string,
+    ) {
+        return this.chatMessagesService.findByRoom(
+            room,
+            limit ? parseInt(limit, 10) : 50,
+            before ? parseInt(before, 10) : undefined,
+        );
     }
 
 

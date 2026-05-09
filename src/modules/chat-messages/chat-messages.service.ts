@@ -11,13 +11,17 @@ export class ChatMessagesService {
         @InjectRepository(ChatRoom) private readonly chatRoomRepo: Repository<ChatRoom>,
     ) {}
 
-    async findByRoom(room: string): Promise<any[]> {
-        const msgs = await this.messageRepo.find({
-            where: { room },
-            relations: ['user', 'replyTo', 'replyTo.user'],
-            order: { created_at: 'ASC' },
-        });
-        return msgs.map(m => this.formatMessage(m));
+    async findByRoom(room: string, limit = 50, before?: number): Promise<any[]> {
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const qb = this.messageRepo.createQueryBuilder('m')
+            .leftJoinAndSelect('m.user', 'user')
+            .leftJoinAndSelect('m.replyTo', 'replyTo')
+            .leftJoinAndSelect('replyTo.user', 'replyToUser')
+            .where('m.room = :room', { room });
+        if (before) qb.andWhere('m.id < :before', { before });
+        qb.orderBy('m.id', 'DESC').take(safeLimit);
+        const msgs = await qb.getMany();
+        return msgs.reverse().map(m => this.formatMessage(m));
     }
 
     // Створює кімнату якщо не існує

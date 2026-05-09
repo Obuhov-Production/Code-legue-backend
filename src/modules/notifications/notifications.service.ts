@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class NotificationsService {
     constructor(
         @InjectRepository(Notification)
         private readonly repo: Repository<Notification>,
+        @InjectRepository(User)
+        private readonly userRepo: Repository<User>,
     ) {}
 
     async create(data: { userId: number; message: string; icon?: string; link_tab?: string }): Promise<Notification> {
@@ -39,5 +42,17 @@ export class NotificationsService {
 
     async remove(id: number, userId: number): Promise<void> {
         await this.repo.delete({ id, userId });
+    }
+
+    async notifyAdmins(message: string, icon?: string, link_tab?: string): Promise<Notification[]> {
+        const admins = await this.userRepo
+            .createQueryBuilder('u')
+            .where('u.role LIKE :role', { role: '%admin%' })
+            .select(['u.id'])
+            .getMany();
+
+        return Promise.all(
+            admins.map(admin => this.create({ userId: admin.id, message, icon, link_tab })),
+        );
     }
 }

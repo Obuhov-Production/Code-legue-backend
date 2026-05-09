@@ -7,6 +7,8 @@ import {TournamentStatus, STATUS_TRANSITIONS} from "./enums/TournamentStatus.enu
 import {UpdateTournamentDto} from "./dto/update-tournament.dto";
 import {Team} from "../teams/entities/team.entity";
 import { JuryAssignment } from '../jury-assignments/entities/jury-assignment.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ChatGateway } from '../chat-messages/chat.gateway';
 
 
 @Injectable()
@@ -18,6 +20,8 @@ export class TournamentsService {
         private readonly teamRepository: Repository<Team>,
         @InjectRepository(JuryAssignment)
         private readonly juryAssignmentRepository: Repository<JuryAssignment>,
+        private readonly notificationsService: NotificationsService,
+        private readonly chatGateway: ChatGateway,
     ) {}
 
     async getAll(status?: TournamentStatus) {
@@ -95,6 +99,16 @@ export class TournamentsService {
         });
 
         const saved = await this.tournamentRepository.save(tournament);
+
+        const adminNotifs = await this.notificationsService.notifyAdmins(
+            `Створено новий турнір: ${dto.name}`,
+            '🏆',
+            'admin',
+        );
+        adminNotifs.forEach(n => {
+            try { this.chatGateway.sendToUser(n.userId, 'notification:new', n); } catch {}
+        });
+
         return saved.id;
     }
 

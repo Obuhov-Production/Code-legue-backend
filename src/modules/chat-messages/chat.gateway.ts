@@ -286,6 +286,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.to(`user_${userId}`).emit(event, data);
     }
 
+    sendToAdmins(event: string, data: object) {
+        const adminUserIds = new Set<number>();
+        this.server.sockets.sockets.forEach((socket) => {
+            const s = socket as AuthSocket;
+            if (s.role?.includes('admin') && s.userId) {
+                adminUserIds.add(s.userId);
+            }
+        });
+        adminUserIds.forEach(userId => this.server.to(`user_${userId}`).emit(event, data));
+    }
+
     @SubscribeMessage('pin_message')
     async handlePin(
         @ConnectedSocket() client: AuthSocket,
