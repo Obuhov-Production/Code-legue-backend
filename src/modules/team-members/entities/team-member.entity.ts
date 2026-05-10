@@ -34,6 +34,9 @@ export class TeamMember {
     @Column({ nullable: true, type: 'int' })
     user_id: number | null;
 
+    @Column({ type: 'varchar', length: 20, default: 'accepted' })
+    status: 'pending' | 'accepted' | 'rejected';
+
     @CreateDateColumn()
     createdAt: Date;
 }

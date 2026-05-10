@@ -85,6 +85,27 @@ export class ChatMessagesService {
         return { success: true };
     }
 
+    /**
+     * Marks every message in a room (sent by anyone other than `readerUserId`)
+     * as read. Returns the list of message ids that flipped from unread → read,
+     * so the gateway can notify the original senders for live ✓✓ updates.
+     */
+    async markRoomAsRead(room: string, readerUserId: number): Promise<number[]> {
+        const unread = await this.messageRepo.find({
+            where: { room, is_read: false } as any,
+            select: ['id', 'user_id'],
+        });
+        const ids = unread.filter(m => m.user_id !== readerUserId).map(m => m.id);
+        if (ids.length === 0) return [];
+        await this.messageRepo
+            .createQueryBuilder()
+            .update(Message)
+            .set({ is_read: true })
+            .whereInIds(ids)
+            .execute();
+        return ids;
+    }
+
     async getCustomRooms(): Promise<any[]> {
         const rooms = await this.chatRoomRepo.find({
             order: { created_at: 'ASC' },

@@ -64,4 +64,7 @@ export class Message {
 
     @Column({ length: 20, default: 'user' })
     msg_type: string;
+
+    @Column({ default: false })
+    is_read: boolean;
 }

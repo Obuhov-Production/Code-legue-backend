@@ -30,6 +30,39 @@ export class TeamsController {
         return this.teamsService.getTeamsByTournament(tournamentId);
     }
 
+    @UseGuards(JwtAuthGuard)
+    @Get('invites/mine')
+    getMyInvites(@Req() req: Request) {
+        return this.teamsService.getMyPendingInvites((req.user as any).userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('invites/:memberId')
+    getInviteDetails(
+        @Param('memberId', ParseIntPipe) memberId: number,
+        @Req() req: Request,
+    ) {
+        return this.teamsService.getInviteDetails(memberId, (req.user as any).userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post('invites/:memberId/accept')
+    acceptInvite(
+        @Param('memberId', ParseIntPipe) memberId: number,
+        @Req() req: Request,
+    ) {
+        return this.teamsService.acceptInvite(memberId, (req.user as any).userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post('invites/:memberId/reject')
+    rejectInvite(
+        @Param('memberId', ParseIntPipe) memberId: number,
+        @Req() req: Request,
+    ) {
+        return this.teamsService.rejectInvite(memberId, (req.user as any).userId);
+    }
+
     @Get(':id')
     getOne(@Param('id', ParseIntPipe) id: number) {
         return this.teamsService.getTeamById(id);

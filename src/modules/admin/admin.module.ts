@@ -7,11 +7,12 @@ import { Tournament } from '../tournaments/entities/tournament.entity';
 import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { ChatRoomSettings } from '../chat-room-settings/entities/chat-room-setting.entity';
+import { Message } from '../chat-messages/entities/chat-message.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([User, Tournament, Team, Submission, ChatRoomSettings]),
+        TypeOrmModule.forFeature([User, Tournament, Team, Submission, ChatRoomSettings, Message]),
         AuthModule,
     ],
     controllers: [AdminController],

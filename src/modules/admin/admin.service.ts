@@ -6,6 +6,7 @@ import { Tournament } from '../tournaments/entities/tournament.entity';
 import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { ChatRoomSettings } from '../chat-room-settings/entities/chat-room-setting.entity';
+import { Message } from '../chat-messages/entities/chat-message.entity';
 import * as bcrypt from 'bcrypt';
 import { BulkUserAction, BulkUserActionDto } from './dto/bulk-user-action.dto';
 import { SearchUsersDto } from './dto/search-users.dto';
@@ -18,6 +19,7 @@ export class AdminService {
         @InjectRepository(Team) private readonly teamRepo: Repository<Team>,
         @InjectRepository(Submission) private readonly submissionRepo: Repository<Submission>,
         @InjectRepository(ChatRoomSettings) private readonly chatSettingsRepo: Repository<ChatRoomSettings>,
+        @InjectRepository(Message) private readonly messageRepo: Repository<Message>,
     ) {}
 
     async getStats() {
@@ -30,23 +32,44 @@ export class AdminService {
         return { users, tournaments, teams, submissions };
     }
 
-    async getUserDailyStats(days: number) {
+    async getUserDailyStats(days: number, metric = 'users') {
         const clampedDays = Math.min(Math.max(days, 1), 365);
-        const rows: Array<{ date: string; count: string }> = await this.userRepo.query(
+
+        const sources: Record<string, { repo: Repository<any>; table: string; where?: string }> = {
+            users:        { repo: this.userRepo,       table: 'users' },
+            chat:         { repo: this.messageRepo,    table: 'messages',     where: 'deleted = 0' },
+            tournaments:  { repo: this.tournamentRepo, table: 'tournaments' },
+            teams:        { repo: this.teamRepo,       table: 'teams' },
+            submissions:  { repo: this.submissionRepo, table: 'submissions' },
+        };
+        const src = sources[metric] ?? sources.users;
+
+        const whereClauses = [`created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`];
+        if (src.where) whereClauses.push(src.where);
+
+        const rows: Array<{ date: Date | string; count: string | number }> = await src.repo.query(
             `SELECT DATE(created_at) as date, COUNT(*) as count
-             FROM users
-             WHERE created_at >= DATE('now', '-' || ? || ' days')
+             FROM ${src.table}
+             WHERE ${whereClauses.join(' AND ')}
              GROUP BY DATE(created_at)
              ORDER BY date ASC`,
-            [clampedDays],
+            [clampedDays - 1],
         );
 
-        const countMap = new Map(rows.map(r => [r.date, Number(r.count)]));
+        const toKey = (d: Date | string) => {
+            const dt = d instanceof Date ? d : new Date(d);
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+        const countMap = new Map(rows.map(r => [toKey(r.date), Number(r.count)]));
+
         const result: Array<{ date: string; count: number }> = [];
         for (let i = clampedDays - 1; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            const key = d.toISOString().slice(0, 10);
+            const key = toKey(d);
             result.push({ date: key, count: countMap.get(key) ?? 0 });
         }
         return result;

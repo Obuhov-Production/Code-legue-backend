@@ -21,8 +21,8 @@ export class AdminController {
     }
 
     @Get('users/daily-stats')
-    getUserDailyStats(@Query('days') days = '7') {
-        return this.adminService.getUserDailyStats(parseInt(days, 10) || 7);
+    getUserDailyStats(@Query('days') days = '7', @Query('metric') metric = 'users') {
+        return this.adminService.getUserDailyStats(parseInt(days, 10) || 7, metric);
     }
 
     @Get('users')

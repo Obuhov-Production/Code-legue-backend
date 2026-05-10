@@ -19,6 +19,8 @@ import { CreateCodeCommentDto } from './dto/create-code-comment.dto';
 import { CodeReview } from './entities/code-review.entity';
 import { ChatRoomMember } from './entities/chat-room-member.entity';
 import { Badge } from '../badges/entities/badge.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 
 @Injectable()
 export class TeamsService {
@@ -31,7 +33,19 @@ export class TeamsService {
         @InjectRepository(CodeReview) private readonly codeReviewRepo: Repository<CodeReview>,
         @InjectRepository(ChatRoomMember) private readonly chatRoomMemberRepo: Repository<ChatRoomMember>,
         @InjectRepository(Badge) private readonly badgeRepo: Repository<Badge>,
+        @InjectRepository(ChatRoom) private readonly chatRoomRepo: Repository<ChatRoom>,
+        private readonly notificationsService: NotificationsService,
     ) {}
+
+    private async sendInviteNotification(memberId: number, userId: number, teamName: string, tournamentName: string | null) {
+        const tournamentSuffix = tournamentName ? ` (турнір "${tournamentName}")` : '';
+        await this.notificationsService.create({
+            userId,
+            message: `Вас запросили в команду "${teamName}"${tournamentSuffix}`,
+            icon: 'team_invite',
+            link_tab: `team_invite:${memberId}`,
+        });
+    }
 
     async findMyTeams(userId: number): Promise<any[]> {
         const captainTeams = await this.teamRepo.find({
@@ -40,7 +54,7 @@ export class TeamsService {
         });
 
         const memberRecords = await this.memberRepo.find({
-            where: { user_id: userId },
+            where: { user_id: userId, status: 'accepted' },
             relations: ['team', 'team.tournament'],
         });
 
@@ -106,6 +120,26 @@ export class TeamsService {
             }
         }
 
+        // Validate platform-linked members BEFORE creating the team — fail fast,
+        // no orphaned team if any participant hasn't confirmed their full name.
+        if (dto.members && dto.members.length > 0) {
+            for (const m of dto.members) {
+                if (m.user_id) {
+                    const linkedUser = await this.userRepo.findOne({ where: { id: m.user_id } });
+                    if (!linkedUser || !linkedUser.first_name || !linkedUser.last_name || !linkedUser.middle_name) {
+                        const username = linkedUser?.username ?? `user#${m.user_id}`;
+                        throw new BadRequestException(`Учасник ${username} ще не підтвердив своє ПІБ у профілі`);
+                    }
+                }
+            }
+
+            const min = tournament.min_team_size;
+            const max = tournament.max_team_size;
+            if (dto.members.length < min || dto.members.length > max) {
+                throw new BadRequestException(`Team size must be between ${min} and ${max}`);
+            }
+        }
+
         const team = this.teamRepo.create({
             ...dto,
             captain_id: captainId,
@@ -114,7 +148,9 @@ export class TeamsService {
         try {
             const saved = await this.teamRepo.save(team);
 
-            // Save initial members to memberRepo
+            // Save initial members. Members linked to a platform user start as 'pending';
+            // placeholder members (no user_id) are 'accepted' so the captain's roster is complete.
+            const savedMembers: TeamMember[] = [];
             if (dto.members && dto.members.length > 0) {
                 const newMembers = dto.members.map((m) =>
                     this.memberRepo.create({
@@ -123,26 +159,39 @@ export class TeamsService {
                         fullName: m.fullName ?? m.full_name ?? '',
                         email: m.email ?? '',
                         user_id: m.user_id ?? null,
+                        status: m.user_id ? 'pending' : 'accepted',
                     }),
                 );
-                await this.memberRepo.save(newMembers);
+                const persisted = await this.memberRepo.save(newMembers);
+                savedMembers.push(...persisted);
             }
 
-            // Auto-add captain and platform-linked members to team chat
-            const membersToAdd: number[] = [captainId];
-            if (dto.members) {
-                for (const m of dto.members) {
-                    if (m.user_id) membersToAdd.push(m.user_id);
-                }
-            }
-            for (const uid of [...new Set(membersToAdd)]) {
-                await this.chatRoomMemberRepo.save(
-                    this.chatRoomMemberRepo.create({
-                        room: `team_${saved.id}`,
-                        user_id: uid,
-                        added_by: captainId,
+            // Create the team chat room itself (so it exists in chat_rooms),
+            // then auto-join the captain. Invitees only join after accepting.
+            const roomName = `team_${saved.id}`;
+            const existingRoom = await this.chatRoomRepo.findOne({ where: { name: roomName } });
+            if (!existingRoom) {
+                await this.chatRoomRepo.save(
+                    this.chatRoomRepo.create({
+                        name: roomName,
+                        label: saved.name,
+                        created_by: captainId,
                     }),
                 );
+            }
+            await this.chatRoomMemberRepo.save(
+                this.chatRoomMemberRepo.create({
+                    room: roomName,
+                    user_id: captainId,
+                    added_by: captainId,
+                }),
+            );
+
+            // Send invite notifications to platform-linked members
+            for (const m of savedMembers) {
+                if (m.user_id && m.user_id !== captainId && m.status === 'pending') {
+                    await this.sendInviteNotification(m.id, m.user_id, saved.name, tournament.name);
+                }
             }
 
             return {
@@ -184,14 +233,36 @@ export class TeamsService {
 
         if (!team) throw new NotFoundException('Team not found');
 
+        // Hydrate platform-linked members with user info (username, avatar, status, name)
+        const linkedUserIds = (team.members || [])
+            .map((m) => m.user_id)
+            .filter((uid): uid is number => uid != null);
+
+        const usersById = new Map<number, User>();
+        if (linkedUserIds.length > 0) {
+            const users = await this.userRepo
+                .createQueryBuilder('u')
+                .select(['u.id', 'u.username', 'u.user_avatar_url', 'u.status', 'u.first_name', 'u.last_name', 'u.middle_name'])
+                .whereInIds(linkedUserIds)
+                .getMany();
+            for (const u of users) usersById.set(u.id, u);
+        }
+
         return {
             ...team,
-            members: (team.members || []).map((m) => ({
-                id: m.id,
-                full_name: m.fullName,
-                email: m.email,
-                user_id: m.user_id,
-            })),
+            members: (team.members || []).map((m) => {
+                const linked = m.user_id ? usersById.get(m.user_id) : null;
+                return {
+                    id: m.id,
+                    full_name: m.fullName,
+                    email: m.email,
+                    user_id: m.user_id,
+                    status: m.status,
+                    username: linked?.username ?? null,
+                    user_avatar_url: linked?.user_avatar_url ?? null,
+                    presence: linked?.status ?? null,
+                };
+            }),
         };
     }
 
@@ -234,36 +305,165 @@ export class TeamsService {
                 }
             }
 
+            // Snapshot existing user_id → status so we don't re-invite users who already accepted/rejected.
+            const existingStatusByUid = new Map<number, 'pending' | 'accepted' | 'rejected'>(
+                (team.members || [])
+                    .filter((m) => !!m.user_id)
+                    .map((m) => [m.user_id as number, m.status]),
+            );
+
             await this.memberRepo.delete({ team: { id: team.id } as any });
 
-            const newMembers = dto.members.map((m: any) =>
-                this.memberRepo.create({
+            const newMembers = dto.members.map((m: any) => {
+                const uid: number | null = m.user_id ?? null;
+                const prevStatus = uid ? existingStatusByUid.get(uid) : undefined;
+                const status: 'pending' | 'accepted' | 'rejected' = uid
+                    ? (prevStatus ?? 'pending')
+                    : 'accepted';
+                return this.memberRepo.create({
                     team,
                     tournament: team.tournament,
                     fullName: m.fullName ?? m.full_name ?? '',
                     email: m.email ?? '',
-                    user_id: m.user_id ?? null,
-                }),
-            );
+                    user_id: uid,
+                    status,
+                });
+            });
 
-            await this.memberRepo.save(newMembers);
+            const savedMembers = await this.memberRepo.save(newMembers);
 
-            // Sync chat room membership for platform-linked members
-            const room = `team_${id}`;
-            for (const m of dto.members as any[]) {
-                const uid: number | undefined = m.user_id;
-                if (!uid) continue;
-                const already = await this.chatRoomMemberRepo.findOne({ where: { room, user_id: uid } });
-                if (!already) {
-                    await this.chatRoomMemberRepo.save(
-                        this.chatRoomMemberRepo.create({ room, user_id: uid, added_by: user.userId }),
-                    );
+            // Send invites only to newly-added platform users (no prior record).
+            const captainId = team.captain_id;
+            for (const m of savedMembers) {
+                if (
+                    m.user_id &&
+                    m.user_id !== captainId &&
+                    m.status === 'pending' &&
+                    !existingStatusByUid.has(m.user_id)
+                ) {
+                    await this.sendInviteNotification(m.id, m.user_id, team.name, team.tournament?.name ?? null);
                 }
             }
         }
 
         await this.teamRepo.save(team);
         return { success: true };
+    }
+
+    async getMyPendingInvites(userId: number) {
+        const invites = await this.memberRepo.find({
+            where: { user_id: userId, status: 'pending' },
+            relations: ['team', 'team.tournament'],
+            order: { createdAt: 'DESC' },
+        });
+        return Promise.all(invites.map(async (m) => this.toInviteDto(m)));
+    }
+
+    async getInviteDetails(memberId: number, userId: number) {
+        const invite = await this.memberRepo.findOne({
+            where: { id: memberId },
+            relations: ['team', 'team.tournament'],
+        });
+        if (!invite) throw new NotFoundException('Invite not found');
+        if (invite.user_id !== userId) throw new ForbiddenException('Not your invite');
+        return this.toInviteDto(invite);
+    }
+
+    async acceptInvite(memberId: number, userId: number) {
+        const invite = await this.memberRepo.findOne({
+            where: { id: memberId },
+            relations: ['team'],
+        });
+        if (!invite) throw new NotFoundException('Invite not found');
+        if (invite.user_id == null || invite.user_id !== userId) throw new ForbiddenException('Not your invite');
+        if (invite.status !== 'pending') {
+            throw new BadRequestException(`Invite already ${invite.status}`);
+        }
+
+        invite.status = 'accepted';
+        await this.memberRepo.save(invite);
+
+        const room = `team_${invite.team.id}`;
+        const existing = await this.chatRoomMemberRepo.findOne({ where: { room, user_id: userId } });
+        if (!existing) {
+            await this.chatRoomMemberRepo.save(
+                this.chatRoomMemberRepo.create({ room, user_id: userId, added_by: invite.team.captain_id }),
+            );
+        }
+
+        const acceptingUser = await this.userRepo.findOne({ where: { id: userId } });
+        const displayName = acceptingUser?.username ?? `user#${userId}`;
+        const captainId = invite.team.captain_id;
+        if (captainId != null && captainId !== userId) {
+            await this.notificationsService.create({
+                userId: captainId,
+                message: `${displayName} приєднався(-лася) до команди "${invite.team.name}"`,
+                icon: 'team_member_joined',
+                link_tab: 'teams',
+            });
+        }
+
+        return { success: true, team_id: invite.team.id };
+    }
+
+    async rejectInvite(memberId: number, userId: number) {
+        const invite = await this.memberRepo.findOne({
+            where: { id: memberId },
+            relations: ['team'],
+        });
+        if (!invite) throw new NotFoundException('Invite not found');
+        if (invite.user_id == null || invite.user_id !== userId) throw new ForbiddenException('Not your invite');
+        if (invite.status !== 'pending') {
+            throw new BadRequestException(`Invite already ${invite.status}`);
+        }
+
+        invite.status = 'rejected';
+        await this.memberRepo.save(invite);
+
+        const rejectingUser = await this.userRepo.findOne({ where: { id: userId } });
+        const displayName = rejectingUser?.username ?? `user#${userId}`;
+        const captainId = invite.team.captain_id;
+        if (captainId != null && captainId !== userId) {
+            await this.notificationsService.create({
+                userId: captainId,
+                message: `${displayName} відхилив(ла) запрошення в команду "${invite.team.name}"`,
+                icon: 'team_invite_rejected',
+                link_tab: 'teams',
+            });
+        }
+
+        return { success: true };
+    }
+
+    private async toInviteDto(invite: TeamMember) {
+        const captain = invite.team?.captain_id
+            ? await this.userRepo.findOne({ where: { id: invite.team.captain_id } })
+            : null;
+        return {
+            id: invite.id,
+            status: invite.status,
+            team: {
+                id: invite.team?.id,
+                name: invite.team?.name,
+                city: invite.team?.city,
+                school: invite.team?.school,
+            },
+            tournament: invite.team?.tournament
+                ? {
+                    id: invite.team.tournament.id,
+                    name: invite.team.tournament.name,
+                    status: invite.team.tournament.status,
+                }
+                : null,
+            captain: captain
+                ? {
+                    id: captain.id,
+                    username: captain.username,
+                    avatar_url: captain.user_avatar_url ?? null,
+                }
+                : null,
+            invited_at: invite.createdAt,
+        };
     }
 
     async deleteTeam(id: number, user: any) {
@@ -418,7 +618,7 @@ export class TeamsService {
 
         const users = await this.userRepo
             .createQueryBuilder('u')
-            .select(['u.id', 'u.username', 'u.first_name', 'u.last_name', 'u.middle_name', 'u.user_avatar_url'])
+            .select(['u.id', 'u.username', 'u.first_name', 'u.last_name', 'u.middle_name', 'u.user_avatar_url', 'u.status', 'u.last_seen_at'])
             .whereInIds(userIds)
             .getMany();
 
@@ -428,6 +628,10 @@ export class TeamsService {
             first_name: u.first_name,
             last_name: u.last_name,
             identity_confirmed: !!(u.first_name && u.last_name && u.middle_name),
+            user_avatar_url: u.user_avatar_url ?? null,
+            status: u.status ?? null,
+            last_seen_at: u.last_seen_at ?? null,
+            is_captain: u.id === team.captain_id,
         }));
     }
 
