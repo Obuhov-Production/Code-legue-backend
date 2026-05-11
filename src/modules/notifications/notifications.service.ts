@@ -32,8 +32,9 @@ export class NotificationsService {
         });
     }
 
-    async markRead(id: number, userId: number): Promise<void> {
+    async markRead(id: number, userId: number): Promise<{ success: boolean }> {
         await this.repo.update({ id, userId }, { is_read: true });
+        return { success: true };
     }
 
     async markAllRead(userId: number): Promise<void> {
@@ -42,6 +43,10 @@ export class NotificationsService {
 
     async remove(id: number, userId: number): Promise<void> {
         await this.repo.delete({ id, userId });
+    }
+
+    async removeAll(userId: number): Promise<void> {
+        await this.repo.delete({ userId });
     }
 
     async notifyAdmins(message: string, icon?: string, link_tab?: string): Promise<Notification[]> {

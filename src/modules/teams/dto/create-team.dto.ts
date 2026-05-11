@@ -57,6 +57,11 @@ export class CreateTeamDto {
     telegram_username?: string;
 
     @IsOptional()
+    @IsString()
+    @MaxLength(150)
+    leader_email?: string;
+
+    @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => CreateTeamMemberDto)

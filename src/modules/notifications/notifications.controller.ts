@@ -22,6 +22,11 @@ export class NotificationsController {
         return this.notificationsService.markAllRead(req.user.userId);
     }
 
+    @Delete()
+    removeAll(@Req() req: any) {
+        return this.notificationsService.removeAll(req.user.userId);
+    }
+
     @Delete(':id')
     remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
         return this.notificationsService.remove(id, req.user.userId);

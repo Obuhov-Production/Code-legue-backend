@@ -63,7 +63,37 @@ export class TeamsService {
             .map((m) => m.team)
             .filter((t) => t && !captainIds.has(t.id));
 
-        return [...captainTeams, ...memberTeams].map((t) => ({
+        const allTeams = [...captainTeams, ...memberTeams];
+
+        // Lazily backfill chat rooms that were missing (e.g. teams created before
+        // the auto-creation fix). Also ensures the requesting user has a membership row.
+        for (const t of allTeams) {
+            const roomName = `team_${t.id}`;
+            const existingRoom = await this.chatRoomRepo.findOne({ where: { name: roomName } });
+            if (!existingRoom) {
+                await this.chatRoomRepo.save(
+                    this.chatRoomRepo.create({
+                        name: roomName,
+                        label: t.name,
+                        created_by: t.captain_id ?? userId,
+                    }),
+                );
+            }
+            const existingMember = await this.chatRoomMemberRepo.findOne({
+                where: { room: roomName, user_id: userId },
+            });
+            if (!existingMember) {
+                await this.chatRoomMemberRepo.save(
+                    this.chatRoomMemberRepo.create({
+                        room: roomName,
+                        user_id: userId,
+                        added_by: t.captain_id,
+                    }),
+                );
+            }
+        }
+
+        return allTeams.map((t) => ({
             id: t.id,
             name: t.name,
             city: t.city,
@@ -138,6 +168,28 @@ export class TeamsService {
             if (dto.members.length < min || dto.members.length > max) {
                 throw new BadRequestException(`Team size must be between ${min} and ${max}`);
             }
+
+            // Pre-validate email uniqueness within this tournament (the team_members
+            // table has @Unique(['email', 'tournament'])). Without this check the
+            // team_repo.save() succeeds but the members save throws ER_DUP_ENTRY,
+            // leaving an orphaned team in the database.
+            const seenEmails = new Set<string>();
+            for (const m of dto.members) {
+                const email = (m.email ?? '').trim().toLowerCase();
+                if (!email) continue;
+                if (seenEmails.has(email)) {
+                    throw new ConflictException(`Учасник з email ${email} вказаний двічі`);
+                }
+                seenEmails.add(email);
+                const existing = await this.memberRepo
+                    .createQueryBuilder('tm')
+                    .where('LOWER(tm.email) = :email', { email })
+                    .andWhere('tm.tournament_id = :tid', { tid: dto.tournament_id })
+                    .getOne();
+                if (existing) {
+                    throw new ConflictException(`Учасник з email ${email} вже бере участь у цьому турнірі`);
+                }
+            }
         }
 
         const team = this.teamRepo.create({
@@ -145,8 +197,9 @@ export class TeamsService {
             captain_id: captainId,
         });
 
+        let saved: Team | null = null;
         try {
-            const saved = await this.teamRepo.save(team);
+            saved = await this.teamRepo.save(team);
 
             // Save initial members. Members linked to a platform user start as 'pending';
             // placeholder members (no user_id) are 'accepted' so the captain's roster is complete.
@@ -154,7 +207,7 @@ export class TeamsService {
             if (dto.members && dto.members.length > 0) {
                 const newMembers = dto.members.map((m) =>
                     this.memberRepo.create({
-                        team: saved,
+                        team: saved!,
                         tournament: tournament,
                         fullName: m.fullName ?? m.full_name ?? '',
                         email: m.email ?? '',
@@ -202,10 +255,21 @@ export class TeamsService {
                 created_at: saved.created_at,
             };
         } catch (error: any) {
+            // Roll back the team if anything after the initial save failed —
+            // otherwise an orphaned team row stays in the database.
+            if (saved) {
+                try {
+                    await this.memberRepo.delete({ team: { id: saved.id } as any });
+                    await this.chatRoomMemberRepo.delete({ room: `team_${saved.id}` });
+                    await this.chatRoomRepo.delete({ name: `team_${saved.id}` });
+                    await this.teamRepo.delete(saved.id);
+                } catch { /* best-effort cleanup */ }
+            }
             if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
                 throw new ConflictException('Team registration conflict');
             }
-            throw new BadRequestException('Failed to create team');
+            if (error instanceof ConflictException || error instanceof BadRequestException) throw error;
+            throw new BadRequestException(error?.message || 'Failed to create team');
         }
     }
 
@@ -477,6 +541,12 @@ export class TeamsService {
         if (team.captain_id !== user.userId && user.role !== 'admin') {
             throw new ForbiddenException('No access');
         }
+
+        // Clean up chat artefacts (no FK linkage from chat_rooms/messages to teams).
+        const room = `team_${id}`;
+        await this.chatRoomMemberRepo.delete({ room });
+        await this.teamRepo.query('DELETE FROM messages WHERE room = ?', [room]);
+        await this.chatRoomRepo.delete({ name: room });
 
         await this.teamRepo.remove(team);
         return { success: true };

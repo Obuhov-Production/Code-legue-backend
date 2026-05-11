@@ -254,6 +254,13 @@ export class AdminService {
             throw new NotFoundException('Team not found');
         }
 
+        // Chat-related rows are linked by string `team_<id>`, not by FK, so they
+        // won't cascade. Wipe them explicitly to keep chat_rooms clean.
+        const room = `team_${id}`;
+        await this.userRepo.query('DELETE FROM chat_room_members WHERE room = ?', [room]);
+        await this.userRepo.query('DELETE FROM messages WHERE room = ?', [room]);
+        await this.userRepo.query('DELETE FROM chat_rooms WHERE name = ?', [room]);
+
         await this.teamRepo.delete(id);
 
         return { message: 'Team deleted successfully' };

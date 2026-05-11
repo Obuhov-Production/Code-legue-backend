@@ -54,6 +54,9 @@ export class Team {
     @Column({ type: 'text', nullable: true })
     telegram_username: string | null;
 
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    leader_email: string | null;
+
     @CreateDateColumn()
     created_at: Date;
 }
