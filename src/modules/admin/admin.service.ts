@@ -25,13 +25,30 @@ export class AdminService {
     ) {}
 
     async getStats() {
-        const [users, tournaments, teams, submissions] = await Promise.all([
+        const [users, tournaments, teams, submissions, messages] = await Promise.all([
             this.userRepo.count(),
             this.tournamentRepo.count(),
             this.teamRepo.count(),
             this.submissionRepo.count(),
+            this.messageRepo.count({ where: { deleted: false } as any }),
         ]);
-        return { users, tournaments, teams, submissions };
+
+        // Message trend: compare last 30 days vs previous 30 days
+        const [msgLast, msgPrev] = await Promise.all([
+            this.messageRepo.query(
+                `SELECT COUNT(*) as cnt FROM messages WHERE deleted = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+            ),
+            this.messageRepo.query(
+                `SELECT COUNT(*) as cnt FROM messages WHERE deleted = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)`,
+            ),
+        ]);
+        const last30 = Number(msgLast[0]?.cnt ?? 0);
+        const prev30 = Number(msgPrev[0]?.cnt ?? 0);
+        const messages_trend = prev30 === 0
+            ? (last30 > 0 ? 100 : 0)
+            : Math.round(((last30 - prev30) / prev30) * 100);
+
+        return { users, tournaments, teams, submissions, messages, messages_trend };
     }
 
     async getUserDailyStats(days: number, metric = 'users') {
