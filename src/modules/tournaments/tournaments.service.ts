@@ -6,7 +6,7 @@ import { LessThanOrEqual, Repository } from "typeorm";
 import { TournamentStatus, STATUS_TRANSITIONS } from "./enums/TournamentStatus.enum";
 import { UpdateTournamentDto } from "./dto/update-tournament.dto";
 import { Team } from "../teams/entities/team.entity";
-import { JuryAssignment } from '../jury-assignments/entities/jury-assignment.entity';
+import { User } from '../users/entities/user.entity';
 import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chat-messages/chat.gateway';
@@ -23,8 +23,8 @@ export class TournamentsService implements OnModuleInit {
         private readonly tournamentRepository: Repository<Tournament>,
         @InjectRepository(Team)
         private readonly teamRepository: Repository<Team>,
-        @InjectRepository(JuryAssignment)
-        private readonly juryAssignmentRepository: Repository<JuryAssignment>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         @InjectRepository(ChatRoom)
         private readonly chatRoomRepository: Repository<ChatRoom>,
         private readonly notificationsService: NotificationsService,
@@ -173,11 +173,9 @@ export class TournamentsService implements OnModuleInit {
         fs.mkdirSync(path.join(tourDir, 'misc'), { recursive: true });
 
         if (dto.jury_ids && dto.jury_ids.length > 0) {
-            for (const juryId of dto.jury_ids) {
-                await this.juryAssignmentRepository.save(
-                    this.juryAssignmentRepository.create({ jury_id: juryId, tournament_id: saved.id } as any),
-                ).catch(() => {});
-            }
+            const juryUsers = await this.userRepository.findBy(dto.jury_ids.map(id => ({ id })));
+            saved.jury_members = juryUsers;
+            await this.tournamentRepository.save(saved);
         }
 
         const adminNotifs = await this.notificationsService.notifyAdmins(
@@ -220,12 +218,22 @@ export class TournamentsService implements OnModuleInit {
         if (dto.end_date) payload.end_date = new Date(dto.end_date);
         if (dto.registration_start) payload.registration_start = new Date(dto.registration_start);
         if (dto.registration_end) payload.registration_end = new Date(dto.registration_end);
+        const juryIds: number[] | undefined = payload.jury_ids;
         delete payload.jury_ids;
 
         const result = await this.tournamentRepository.update({ id }, payload);
 
         if (result.affected === 0) {
             throw new NotFoundException('Tournament not found');
+        }
+
+        // Sync jury members when jury_ids is provided in update
+        if (Array.isArray(juryIds)) {
+            const tournament = await this.tournamentRepository.findOne({ where: { id }, relations: { jury_members: true } });
+            if (tournament) {
+                tournament.jury_members = await this.userRepository.findBy(juryIds.map(uid => ({ id: uid })));
+                await this.tournamentRepository.save(tournament);
+            }
         }
 
         return { success: true };
@@ -322,30 +330,17 @@ export class TournamentsService implements OnModuleInit {
     }
 
     async getAssignedJury(tournamentId: number) {
-        const assignments = await this.juryAssignmentRepository.find({
-            relations: {
-                jury: true,
-                submission: {
-                    team: true,
-                },
-            },
+        const tournament = await this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+            relations: { jury_members: true },
         });
 
-        const juryMap = new Map<number, any>();
-        for (const assignment of assignments) {
-            if (assignment.submission?.team?.tournament_id !== tournamentId) continue;
-            const jury = assignment.jury;
-            if (jury && !juryMap.has(jury.id)) {
-                juryMap.set(jury.id, {
-                    id: jury.id,
-                    username: jury.username,
-                    email: jury.email,
-                    role: jury.role,
-                    user_avatar_url: jury.user_avatar_url ?? null,
-                });
-            }
-        }
-
-        return Array.from(juryMap.values());
+        return (tournament?.jury_members ?? []).map(u => ({
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            user_avatar_url: u.user_avatar_url ?? null,
+        }));
     }
 }

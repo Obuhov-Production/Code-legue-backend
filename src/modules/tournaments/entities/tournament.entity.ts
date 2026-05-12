@@ -4,6 +4,8 @@ import {
     CreateDateColumn,
     Entity,
     JoinColumn,
+    JoinTable,
+    ManyToMany,
     ManyToOne,
     OneToMany,
     PrimaryGeneratedColumn
@@ -134,4 +136,12 @@ export class Tournament {
 
     @OneToMany(() => Round, (round) => round.tournament)
     rounds: Round[];
+
+    @ManyToMany(() => User, { eager: false })
+    @JoinTable({
+        name: 'tournament_jury_members',
+        joinColumn: { name: 'tournament_id', referencedColumnName: 'id' },
+        inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    })
+    jury_members: User[];
 }
