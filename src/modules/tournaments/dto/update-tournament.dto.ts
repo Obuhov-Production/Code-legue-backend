@@ -28,6 +28,18 @@ export class UpdateTournamentDto {
     rules?: string | null;
 
     @IsOptional()
+    @IsString()
+    rules_mode?: string | null;
+
+    @IsOptional()
+    @IsString()
+    rules_file_url?: string | null;
+
+    @IsOptional()
+    @IsString()
+    additional_prizes?: string | null;
+
+    @IsOptional()
     @IsEnum(TournamentCategory)
     category?: TournamentCategory | null;
 

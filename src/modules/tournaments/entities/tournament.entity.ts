@@ -36,6 +36,12 @@ export class Tournament {
     @Column({ type: 'text', nullable: true })
     rules: string | null;
 
+    @Column({ type: 'varchar', length: 10, nullable: true, default: null })
+    rules_mode: string | null; // 'file' | 'text'
+
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    rules_file_url: string | null;
+
     @Column({
         type: 'enum',
         enum: TournamentCategory,
@@ -54,6 +60,9 @@ export class Tournament {
 
     @Column({ type: 'text', nullable: true })
     prize: string | null;
+
+    @Column({ type: 'text', nullable: true })
+    additional_prizes: string | null; // JSON array: [{place, description}]
 
     @Column({ type: 'varchar', length: 20, nullable: true })
     emoji: string | null;

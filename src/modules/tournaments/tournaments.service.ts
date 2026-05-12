@@ -1,18 +1,23 @@
-import {BadRequestException, ForbiddenException, Injectable, NotFoundException} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { CreateTournamentDto } from './dto/create-tournament.dto';
-import {InjectRepository} from "@nestjs/typeorm";
-import {Tournament} from "./entities/tournament.entity";
-import {Repository} from "typeorm";
-import {TournamentStatus, STATUS_TRANSITIONS} from "./enums/TournamentStatus.enum";
-import {UpdateTournamentDto} from "./dto/update-tournament.dto";
-import {Team} from "../teams/entities/team.entity";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Tournament } from "./entities/tournament.entity";
+import { LessThanOrEqual, Repository } from "typeorm";
+import { TournamentStatus, STATUS_TRANSITIONS } from "./enums/TournamentStatus.enum";
+import { UpdateTournamentDto } from "./dto/update-tournament.dto";
+import { Team } from "../teams/entities/team.entity";
 import { JuryAssignment } from '../jury-assignments/entities/jury-assignment.entity';
+import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chat-messages/chat.gateway';
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 @Injectable()
-export class TournamentsService {
+export class TournamentsService implements OnModuleInit {
+    private readonly logger = new Logger(TournamentsService.name);
+
     constructor(
         @InjectRepository(Tournament)
         private readonly tournamentRepository: Repository<Tournament>,
@@ -20,9 +25,67 @@ export class TournamentsService {
         private readonly teamRepository: Repository<Team>,
         @InjectRepository(JuryAssignment)
         private readonly juryAssignmentRepository: Repository<JuryAssignment>,
+        @InjectRepository(ChatRoom)
+        private readonly chatRoomRepository: Repository<ChatRoom>,
         private readonly notificationsService: NotificationsService,
         private readonly chatGateway: ChatGateway,
     ) {}
+
+    onModuleInit() {
+        this.autoTransitionStatuses();
+        setInterval(() => this.autoTransitionStatuses(), 5 * 60 * 1000);
+    }
+
+    async autoTransitionStatuses() {
+        const now = new Date();
+        try {
+            // Registration → Running (after registration_end)
+            const regToRun = await this.tournamentRepository.find({
+                where: { status: TournamentStatus.REGISTRATION, registration_end: LessThanOrEqual(now) },
+            });
+            for (const t of regToRun) {
+                await this.tournamentRepository.update({ id: t.id }, { status: TournamentStatus.RUNNING });
+                this.logger.log(`Auto-transition: tournament #${t.id} "${t.name}" → RUNNING`);
+                const notifs = await this.notificationsService.notifyAdmins(
+                    `Турнір "${t.name}" автоматично переведено в RUNNING`,
+                    '🚀',
+                    'admin',
+                );
+                notifs.forEach(n => {
+                    try { this.chatGateway.sendToUser(n.userId, 'notification:new', n); } catch {}
+                });
+            }
+
+            // Running → Finished (after end_date)
+            const runToFin = await this.tournamentRepository.find({
+                where: { status: TournamentStatus.RUNNING, end_date: LessThanOrEqual(now) },
+            });
+            for (const t of runToFin) {
+                await this.tournamentRepository.update({ id: t.id }, { status: TournamentStatus.FINISHED });
+                this.logger.log(`Auto-transition: tournament #${t.id} "${t.name}" → FINISHED`);
+
+                // Delete team chat rooms for this tournament
+                const teams = await this.teamRepository.find({ where: { tournament_id: t.id } });
+                for (const team of teams) {
+                    await this.chatRoomRepository.delete({ name: `team_${team.id}` }).catch(() => {});
+                }
+                if (teams.length > 0) {
+                    this.logger.log(`Deleted ${teams.length} team chat room(s) for tournament #${t.id}`);
+                }
+
+                const notifs = await this.notificationsService.notifyAdmins(
+                    `Турнір "${t.name}" автоматично завершено (FINISHED)`,
+                    '🏁',
+                    'admin',
+                );
+                notifs.forEach(n => {
+                    try { this.chatGateway.sendToUser(n.userId, 'notification:new', n); } catch {}
+                });
+            }
+        } catch (err: unknown) {
+            this.logger.error('autoTransitionStatuses error:', (err as Error)?.message ?? String(err));
+        }
+    }
 
     async getAll(status?: TournamentStatus) {
         const where = status ? { status } : {};
@@ -77,6 +140,9 @@ export class TournamentsService {
             name: dto.name,
             description: dto.description ?? null,
             rules: dto.rules ?? null,
+            rules_mode: dto.rules_mode ?? null,
+            rules_file_url: dto.rules_file_url ?? null,
+            additional_prizes: dto.additional_prizes ?? null,
             category: dto.category ?? null,
             format: dto.format ?? null,
             prize: dto.prize ?? null,
@@ -100,6 +166,20 @@ export class TournamentsService {
 
         const saved = await this.tournamentRepository.save(tournament);
 
+        // Create tournament directory for file uploads
+        const tourDir = path.resolve(process.cwd(), 'uploads', 'tournaments', String(saved.id));
+        fs.mkdirSync(path.join(tourDir, 'rules'), { recursive: true });
+        fs.mkdirSync(path.join(tourDir, 'tz'), { recursive: true });
+        fs.mkdirSync(path.join(tourDir, 'misc'), { recursive: true });
+
+        if (dto.jury_ids && dto.jury_ids.length > 0) {
+            for (const juryId of dto.jury_ids) {
+                await this.juryAssignmentRepository.save(
+                    this.juryAssignmentRepository.create({ jury_id: juryId, tournament_id: saved.id } as any),
+                ).catch(() => {});
+            }
+        }
+
         const adminNotifs = await this.notificationsService.notifyAdmins(
             `Створено новий турнір: ${dto.name}`,
             '🏆',
@@ -109,7 +189,7 @@ export class TournamentsService {
             try { this.chatGateway.sendToUser(n.userId, 'notification:new', n); } catch {}
         });
 
-        return saved.id;
+        return saved;
     }
 
     /** Admins may edit anyone's tournament; organizers only their own. */
@@ -140,6 +220,7 @@ export class TournamentsService {
         if (dto.end_date) payload.end_date = new Date(dto.end_date);
         if (dto.registration_start) payload.registration_start = new Date(dto.registration_start);
         if (dto.registration_end) payload.registration_end = new Date(dto.registration_end);
+        delete payload.jury_ids;
 
         const result = await this.tournamentRepository.update({ id }, payload);
 
@@ -148,6 +229,25 @@ export class TournamentsService {
         }
 
         return { success: true };
+    }
+
+    async uploadFile(id: number, type: 'rules' | 'tz' | 'misc', file: Express.Multer.File, user: { userId?: number; role?: string }) {
+        await this.assertCanEdit(id, user);
+
+        const tourDir = path.resolve(process.cwd(), 'uploads', 'tournaments', String(id), type);
+        fs.mkdirSync(tourDir, { recursive: true });
+
+        const ext = path.extname(file.originalname || '') || '.bin';
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+        fs.writeFileSync(path.join(tourDir, filename), file.buffer);
+
+        const url = `/uploads/tournaments/${id}/${type}/${filename}`;
+
+        if (type === 'rules') {
+            await this.tournamentRepository.update({ id }, { rules_file_url: url });
+        }
+
+        return { url, filename: file.originalname };
     }
 
     async updateStatus(id: number, status: TournamentStatus, user: { userId?: number; role?: string }) {

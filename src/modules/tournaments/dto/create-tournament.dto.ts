@@ -1,4 +1,5 @@
 import {
+    IsArray,
     IsDateString,
     IsEnum,
     IsInt,
@@ -24,6 +25,18 @@ export class CreateTournamentDto {
     @IsOptional()
     @IsString()
     rules?: string | null;
+
+    @IsOptional()
+    @IsString()
+    rules_mode?: string | null;
+
+    @IsOptional()
+    @IsString()
+    rules_file_url?: string | null;
+
+    @IsOptional()
+    @IsString()
+    additional_prizes?: string | null;
 
     @IsOptional()
     @IsEnum(TournamentCategory)
@@ -100,4 +113,9 @@ export class CreateTournamentDto {
     @IsOptional()
     @IsInt()
     created_by_id?: number;
+
+    @IsOptional()
+    @IsArray()
+    @IsInt({ each: true })
+    jury_ids?: number[];
 }

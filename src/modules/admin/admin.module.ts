@@ -8,11 +8,12 @@ import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { ChatRoomSettings } from '../chat-room-settings/entities/chat-room-setting.entity';
 import { Message } from '../chat-messages/entities/chat-message.entity';
+import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([User, Tournament, Team, Submission, ChatRoomSettings, Message]),
+        TypeOrmModule.forFeature([User, Tournament, Team, Submission, ChatRoomSettings, Message, ChatRoom]),
         AuthModule,
     ],
     controllers: [AdminController],

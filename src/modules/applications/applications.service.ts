@@ -91,6 +91,7 @@ export class ApplicationsService {
             contact_email: app.contactEmail,
             contact_telegram: app.contactTelegram,
             contact_phone: app.contactPhone,
+            created_at: app.createdAt,
         }));
     }
 

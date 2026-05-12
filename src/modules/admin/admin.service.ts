@@ -7,6 +7,7 @@ import { Team } from '../teams/entities/team.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { ChatRoomSettings } from '../chat-room-settings/entities/chat-room-setting.entity';
 import { Message } from '../chat-messages/entities/chat-message.entity';
+import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import * as bcrypt from 'bcrypt';
 import { BulkUserAction, BulkUserActionDto } from './dto/bulk-user-action.dto';
 import { SearchUsersDto } from './dto/search-users.dto';
@@ -20,6 +21,7 @@ export class AdminService {
         @InjectRepository(Submission) private readonly submissionRepo: Repository<Submission>,
         @InjectRepository(ChatRoomSettings) private readonly chatSettingsRepo: Repository<ChatRoomSettings>,
         @InjectRepository(Message) private readonly messageRepo: Repository<Message>,
+        @InjectRepository(ChatRoom) private readonly chatRoomRepo: Repository<ChatRoom>,
     ) {}
 
     async getStats() {
@@ -307,5 +309,19 @@ export class AdminService {
             .map((role) => role.trim())
             .filter((role) => role && role !== targetRole)
             .join(',');
+    }
+
+    async createChatRoom(name: string, label: string, userId: number) {
+        const existing = await this.chatRoomRepo.findOne({ where: { name } });
+        if (existing) throw new BadRequestException('Кімната з таким іменем вже існує');
+        const room = this.chatRoomRepo.create({ name, label, created_by: userId });
+        return this.chatRoomRepo.save(room);
+    }
+
+    async deleteChatRoom(id: number) {
+        const room = await this.chatRoomRepo.findOne({ where: { id } });
+        if (!room) throw new NotFoundException('Кімнату не знайдено');
+        await this.chatRoomRepo.remove(room);
+        return { success: true };
     }
 }

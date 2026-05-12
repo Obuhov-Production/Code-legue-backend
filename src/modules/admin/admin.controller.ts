@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -87,5 +87,18 @@ export class AdminController {
         @Body() body: { locked?: number; time_from?: string | null; time_to?: string | null },
     ) {
         return this.adminService.updateChatSettings(room, body);
+    }
+
+    @Post('chat/rooms')
+    createChatRoom(
+        @Body() body: { name: string; label: string },
+        @Req() req: Request,
+    ) {
+        return this.adminService.createChatRoom(body.name, body.label, (req as any).user?.userId);
+    }
+
+    @Delete('chat/rooms/:id')
+    deleteChatRoom(@Param('id', ParseIntPipe) id: number) {
+        return this.adminService.deleteChatRoom(id);
     }
 }
