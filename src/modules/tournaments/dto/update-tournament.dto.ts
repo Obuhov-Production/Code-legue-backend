@@ -79,6 +79,14 @@ export class UpdateTournamentDto {
     registration_end?: string;
 
     @IsOptional()
+    @IsDateString()
+    submission_start?: string | null;
+
+    @IsOptional()
+    @IsDateString()
+    submission_end?: string | null;
+
+    @IsOptional()
     @IsInt()
     @Min(1)
     teams_limit?: number | null;

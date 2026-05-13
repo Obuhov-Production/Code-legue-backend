@@ -103,6 +103,8 @@ export class TeamsService {
             tournament_id: t.tournament_id,
             tournament_name: t.tournament?.name ?? null,
             tournament_status: t.tournament?.status ?? null,
+            tournament_submission_start: t.tournament?.submission_start ?? null,
+            tournament_submission_end: t.tournament?.submission_end ?? null,
         }));
     }
 
@@ -292,7 +294,7 @@ export class TeamsService {
     async getTeamById(id: number) {
         const team = await this.teamRepo.findOne({
             where: { id },
-            relations: { members: true },
+            relations: { members: true, tournament: true },
         });
 
         if (!team) throw new NotFoundException('Team not found');
@@ -314,6 +316,13 @@ export class TeamsService {
 
         return {
             ...team,
+            tournament_name: team.tournament?.name ?? null,
+            tournament_status: team.tournament?.status ?? null,
+            tournament_start_date: team.tournament?.start_date ?? null,
+            tournament_end_date: team.tournament?.end_date ?? null,
+            tournament_registration_end: team.tournament?.registration_end ?? null,
+            tournament_submission_start: team.tournament?.submission_start ?? null,
+            tournament_submission_end: team.tournament?.submission_end ?? null,
             members: (team.members || []).map((m) => {
                 const linked = m.user_id ? usersById.get(m.user_id) : null;
                 return {

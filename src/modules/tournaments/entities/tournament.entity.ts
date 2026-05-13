@@ -94,6 +94,12 @@ export class Tournament {
     @Column({ type: 'datetime' })
     registration_end: Date;
 
+    @Column({ type: 'datetime', nullable: true })
+    submission_start: Date | null;
+
+    @Column({ type: 'datetime', nullable: true })
+    submission_end: Date | null;
+
     @Column({ type: 'int', nullable: true })
     teams_limit: number | null;
 

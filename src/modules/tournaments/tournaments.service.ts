@@ -8,6 +8,7 @@ import { UpdateTournamentDto } from "./dto/update-tournament.dto";
 import { Team } from "../teams/entities/team.entity";
 import { User } from '../users/entities/user.entity';
 import { ChatRoom } from '../chat-room/entities/chat-room.entity';
+import { ChatRoomMember } from '../teams/entities/chat-room-member.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chat-messages/chat.gateway';
 import * as fs from 'fs';
@@ -27,6 +28,8 @@ export class TournamentsService implements OnModuleInit {
         private readonly userRepository: Repository<User>,
         @InjectRepository(ChatRoom)
         private readonly chatRoomRepository: Repository<ChatRoom>,
+        @InjectRepository(ChatRoomMember)
+        private readonly chatRoomMemberRepository: Repository<ChatRoomMember>,
         private readonly notificationsService: NotificationsService,
         private readonly chatGateway: ChatGateway,
     ) {}
@@ -153,6 +156,8 @@ export class TournamentsService implements OnModuleInit {
             end_date: new Date(dto.end_date),
             registration_start: new Date(dto.registration_start),
             registration_end: new Date(dto.registration_end),
+            submission_start: dto.submission_start ? new Date(dto.submission_start) : null,
+            submission_end: dto.submission_end ? new Date(dto.submission_end) : null,
             teams_limit: dto.teams_limit ?? null,
             rounds_count: dto.rounds_count ?? 1,
             min_team_size: dto.min_team_size ?? 2,
@@ -219,6 +224,8 @@ export class TournamentsService implements OnModuleInit {
         if (dto.end_date) payload.end_date = new Date(dto.end_date);
         if (dto.registration_start) payload.registration_start = new Date(dto.registration_start);
         if (dto.registration_end) payload.registration_end = new Date(dto.registration_end);
+        if (dto.submission_start !== undefined) payload.submission_start = dto.submission_start ? new Date(dto.submission_start) : null;
+        if (dto.submission_end !== undefined) payload.submission_end = dto.submission_end ? new Date(dto.submission_end) : null;
         const juryIds: number[] | undefined = payload.jury_ids;
         delete payload.jury_ids;
 
@@ -329,6 +336,19 @@ export class TournamentsService implements OnModuleInit {
 
     async delete(id: number, user: { userId?: number; role?: string }) {
         await this.assertCanEdit(id, user);
+
+        // Clean up team chat artefacts BEFORE deleting the tournament,
+        // because chat rooms/members/messages are NOT linked by FK to teams.
+        const teams = await this.teamRepository.find({ where: { tournament_id: id } });
+        for (const team of teams) {
+            const room = `team_${team.id}`;
+            await this.chatRoomMemberRepository.delete({ room });
+            await this.tournamentRepository.query('DELETE FROM messages WHERE room = ?', [room]);
+            await this.chatRoomRepository.delete({ name: room });
+        }
+        if (teams.length > 0) {
+            this.logger.log(`Deleted ${teams.length} team chat room(s) for tournament #${id}`);
+        }
 
         const result = await this.tournamentRepository.delete({ id });
 
