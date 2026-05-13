@@ -361,8 +361,13 @@ export class AuthService {
     async refresh(refreshToken: string) {
         try {
             const payload = await this.jwtService.verifyAsync(refreshToken);
+
+            // Fetch latest user data from DB so role changes are reflected immediately
+            const user = await this.authRepository.findOne({ where: { id: payload.userId } });
+            if (!user) throw new UnauthorizedException('User not found');
+
             const newAccessToken = this.jwtService.sign(
-                { userId: payload.userId, username: payload.username, email: payload.email, role: payload.role },
+                { userId: user.id, username: user.username, email: user.email, role: user.role },
                 { expiresIn: '2h' },
             );
             return { accessToken: newAccessToken };

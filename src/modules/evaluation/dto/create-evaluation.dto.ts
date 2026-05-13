@@ -1,7 +1,7 @@
-import { IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateEvaluationDto {
-    @IsInt()
+    @IsNumber()
     @Min(0)
     total_score: number;
 
@@ -10,6 +10,5 @@ export class CreateEvaluationDto {
     comment?: string;
 
     @IsOptional()
-    @IsObject()
-    criteria?: Record<string, number>;
+    criteria?: any;
 }

@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Evaluation } from './entities/evaluation.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { JuryAssignment } from '../jury-assignments/entities/jury-assignment.entity';
+import { Tournament } from '../tournaments/entities/tournament.entity';
 
 @Injectable()
 export class EvaluationService {
@@ -15,18 +16,32 @@ export class EvaluationService {
     ) {}
 
     async createEvaluation(submissionId: number, dto: CreateEvaluationDto, user: any) {
-        const submission = await this.submissionRepo.findOne({ where: { id: submissionId } });
+        const submission = await this.submissionRepo.findOne({
+            where: { id: submissionId },
+            relations: { round: true },
+        });
         if (!submission) {
             throw new NotFoundException('Submission not found');
         }
 
         const isAdmin = String(user?.role || '').includes('admin');
         if (!isAdmin) {
-            const assignment = await this.juryAssignmentRepo.findOne({
-                where: { jury_id: user.userId, submission_id: submissionId },
-            });
-            if (!assignment) {
-                throw new ForbiddenException('User is not assigned to evaluate this submission');
+            // Check if user is jury for the tournament that owns this submission's round
+            const tournamentId = submission.round?.tournament_id;
+            if (!tournamentId) {
+                throw new ForbiddenException('Cannot determine tournament for this submission');
+            }
+
+            const isJury = await this.submissionRepo.manager
+                .getRepository(Tournament)
+                .createQueryBuilder('t')
+                .innerJoin('tournament_jury_members', 'tjm', 'tjm.tournament_id = t.id')
+                .where('t.id = :tid', { tid: tournamentId })
+                .andWhere('tjm.user_id = :userId', { userId: user.userId })
+                .getCount();
+
+            if (!isJury) {
+                throw new ForbiddenException('User is not assigned as jury for this tournament');
             }
         }
 

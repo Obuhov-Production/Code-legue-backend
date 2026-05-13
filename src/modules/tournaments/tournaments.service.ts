@@ -176,6 +176,7 @@ export class TournamentsService implements OnModuleInit {
             const juryUsers = await this.userRepository.findBy(dto.jury_ids.map(id => ({ id })));
             saved.jury_members = juryUsers;
             await this.tournamentRepository.save(saved);
+            await this.ensureJuryRole(juryUsers);
         }
 
         const adminNotifs = await this.notificationsService.notifyAdmins(
@@ -231,8 +232,17 @@ export class TournamentsService implements OnModuleInit {
         if (Array.isArray(juryIds)) {
             const tournament = await this.tournamentRepository.findOne({ where: { id }, relations: { jury_members: true } });
             if (tournament) {
-                tournament.jury_members = await this.userRepository.findBy(juryIds.map(uid => ({ id: uid })));
+                const previousJury = tournament.jury_members ?? [];
+                const newJuryUsers = await this.userRepository.findBy(juryIds.map(uid => ({ id: uid })));
+                tournament.jury_members = newJuryUsers;
                 await this.tournamentRepository.save(tournament);
+
+                // Add jury role to newly assigned users
+                await this.ensureJuryRole(newJuryUsers);
+
+                // Remove jury role from users who were removed (if they are not jury in other tournaments)
+                const removedUsers = previousJury.filter(u => !juryIds.includes(u.id));
+                await this.removeJuryRoleIfNotNeeded(removedUsers);
             }
         }
 
@@ -327,6 +337,42 @@ export class TournamentsService implements OnModuleInit {
         }
 
         return { success: true };
+    }
+
+    /**
+     * Add 'jury' role to users who don't already have it.
+     */
+    private async ensureJuryRole(users: User[]) {
+        for (const user of users) {
+            const roles = (user.role || '').split(',').map(r => r.trim()).filter(Boolean);
+            if (!roles.includes('jury')) {
+                roles.push('jury');
+                user.role = roles.join(',');
+                await this.userRepository.save(user);
+            }
+        }
+    }
+
+    /**
+     * Remove 'jury' role from users if they are no longer jury in any tournament.
+     */
+    private async removeJuryRoleIfNotNeeded(users: User[]) {
+        for (const user of users) {
+            const roles = (user.role || '').split(',').map(r => r.trim()).filter(Boolean);
+            if (!roles.includes('jury')) continue;
+
+            // Check if user is still jury in any tournament
+            const count = await this.tournamentRepository
+                .createQueryBuilder('t')
+                .innerJoin('tournament_jury_members', 'tjm', 'tjm.tournament_id = t.id')
+                .where('tjm.user_id = :uid', { uid: user.id })
+                .getCount();
+
+            if (count === 0) {
+                user.role = roles.filter(r => r !== 'jury').join(',') || 'user';
+                await this.userRepository.save(user);
+            }
+        }
     }
 
     async getAssignedJury(tournamentId: number) {

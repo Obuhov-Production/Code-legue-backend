@@ -15,14 +15,14 @@ export class JuryController {
 
     @Get('tournaments')
     getTournaments(@Req() req: Request) {
-        const user = req.user as { id: number };
-        return this.juryService.getTournamentsForJury(user.id);
+        const user = req.user as { userId: number };
+        return this.juryService.getTournamentsForJury(user.userId);
     }
 
     @Get('submissions')
     getSubmissions(@Req() req: Request) {
-        const user = req.user as { id: number };
-        return this.juryService.getSubmissionsForJury(user.id);
+        const user = req.user as { userId: number };
+        return this.juryService.getSubmissionsForJury(user.userId);
     }
 
     @Get('rounds/:roundId/submissions')
