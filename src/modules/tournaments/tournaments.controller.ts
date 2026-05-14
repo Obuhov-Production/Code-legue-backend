@@ -119,4 +119,10 @@ export class TournamentsController {
 
         return this.tournamentsService.uploadFile(Number(id), fileType, file, req.user as any);
     }
+
+    @Get(':id/files')
+    @UseGuards(JwtAuthGuard)
+    async listFiles(@Param('id') id: string, @Query('type') type: string) {
+        return this.tournamentsService.listFiles(Number(id), type);
+    }
 }

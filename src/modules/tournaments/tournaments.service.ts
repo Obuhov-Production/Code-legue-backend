@@ -303,6 +303,25 @@ export class TournamentsService implements OnModuleInit {
         return { url, filename: file.originalname };
     }
 
+    async listFiles(id: number, type?: string) {
+        const baseDir = path.resolve(process.cwd(), 'uploads', 'tournaments', String(id));
+        const types = type ? [type] : ['rules', 'tz', 'misc'];
+        const results: { type: string; files: { name: string; url: string }[] }[] = [];
+
+        for (const t of types) {
+            const dir = path.join(baseDir, t);
+            if (!fs.existsSync(dir)) continue;
+            const files = fs.readdirSync(dir)
+                .filter(f => f !== '.' && f !== '..')
+                .map(f => ({ name: f, url: `/uploads/tournaments/${id}/${t}/${f}` }));
+            if (files.length > 0) {
+                results.push({ type: t, files });
+            }
+        }
+
+        return { tournament_id: id, files: results };
+    }
+
     async updateStatus(id: number, status: TournamentStatus, user: { userId?: number; role?: string }) {
         const tournament = await this.assertCanEdit(id, user);
 
