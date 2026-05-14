@@ -167,7 +167,14 @@ export class SubmissionsService {
         if (round.status !== RoundStatus.ACTIVE) {
             throw new BadRequestException('Submission is allowed only for active rounds');
         }
-        if (new Date(round.end_date).getTime() <= Date.now()) {
+
+        const deadline = new Date(round.end_date).getTime();
+
+        if (Number.isNaN(deadline)) {
+            throw new BadRequestException('Invalid round deadline');
+        }
+
+        if (deadline <= Date.now()) {
             throw new BadRequestException('Submission deadline has passed');
         }
     }
@@ -176,9 +183,17 @@ export class SubmissionsService {
         if (submission.round.status !== RoundStatus.ACTIVE) {
             throw new BadRequestException('Submission is locked because round is not active');
         }
-        if (new Date(submission.round.end_date).getTime() <= Date.now()) {
+
+        const deadline = new Date(submission.round.end_date).getTime();
+
+        if (Number.isNaN(deadline)) {
+            throw new BadRequestException('Invalid round deadline');
+        }
+
+        if (deadline <= Date.now()) {
             throw new BadRequestException('Submission is locked because deadline has passed');
         }
+
         if (submission.status === SubmissionStatus.CLOSED) {
             throw new BadRequestException('Submission is closed');
         }
