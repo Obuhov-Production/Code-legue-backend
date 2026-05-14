@@ -174,7 +174,11 @@ export class EmailVerificationService {
         await this.userRepo.save(user);
 
         // Видаляємо запис коду — більше не потрібен
-        await this.repo.delete({ user_id: userId }).catch(() => {});
+        try {
+            await this.repo.delete({ user_id: userId });
+        } catch (e) {
+            this.logger?.error?.(e);
+        }
 
         return user;
     }
