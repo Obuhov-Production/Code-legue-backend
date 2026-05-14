@@ -38,4 +38,17 @@ export class CreateRoundDto {
     @IsInt()
     @Min(0)
     sort_order?: number;
+
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    max_teams_pass?: number;
+
+    @IsOptional()
+    @IsString()
+    rules_file_url?: string;
+
+    @IsOptional()
+    @IsString()
+    tz_file_url?: string;
 }

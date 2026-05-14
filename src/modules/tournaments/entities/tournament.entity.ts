@@ -128,6 +128,9 @@ export class Tournament {
     @Column({ type: 'int', nullable: true })
     created_by_id: number ;
 
+    @Column({ type: 'int', nullable: true })
+    parent_tournament_id: number | null;
+
     @OneToMany(() => Announcement, (announcement) => announcement.tournament)
     announcements: Announcement[];
 

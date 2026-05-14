@@ -6,6 +6,8 @@ import { Repository } from 'typeorm';
 import { Round } from './entities/round.entity';
 import { Tournament } from '../tournaments/entities/tournament.entity';
 import { RoundStatus } from './enums/RoundStatus';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class RoundsService {
@@ -33,6 +35,9 @@ export class RoundsService {
             end_date: new Date(createRoundDto.deadline_at),
             status: createRoundDto.status ?? RoundStatus.DRAFT,
             sort_order: createRoundDto.sort_order ?? 0,
+            max_teams_pass: createRoundDto.max_teams_pass ?? null,
+            rules_file_url: createRoundDto.rules_file_url ?? null,
+            tz_file_url: createRoundDto.tz_file_url ?? null,
         });
 
         const saved = await this.roundRepository.save(round);
@@ -91,6 +96,9 @@ export class RoundsService {
             end_date: new Date(deadlineAt),
             status: updateRoundDto.status ?? round.status,
             sort_order: updateRoundDto.sort_order ?? round.sort_order,
+            max_teams_pass: updateRoundDto.max_teams_pass ?? round.max_teams_pass,
+            rules_file_url: updateRoundDto.rules_file_url ?? round.rules_file_url,
+            tz_file_url: updateRoundDto.tz_file_url ?? round.tz_file_url,
         });
 
         await this.roundRepository.save(round);
@@ -163,6 +171,37 @@ export class RoundsService {
         }
     }
 
+    async uploadFile(id: number, type: 'rules' | 'tz' | 'misc', file: Express.Multer.File, user: { userId?: number; role?: string }) {
+        const round = await this.roundRepository.findOne({ where: { id }, relations: { tournament: true } });
+        if (!round) throw new NotFoundException('Round not found');
+        this.assertTournamentAccess(round.tournament, user);
+
+        const allowedRules = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/markdown'];
+        const allowedTz = ['application/pdf', 'application/zip', 'application/x-zip-compressed', 'text/plain', 'text/markdown', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/gif'];
+        const allowed = type === 'rules' ? allowedRules : allowedTz;
+        if (!allowed.includes(file.mimetype)) {
+            throw new BadRequestException(`Unsupported file type: ${file.mimetype}`);
+        }
+
+        const dir = path.resolve(process.cwd(), 'uploads', 'rounds', String(id), type);
+        fs.mkdirSync(dir, { recursive: true });
+        const ext = path.extname(file.originalname) || '.bin';
+        const filename = `${Date.now()}${ext}`;
+        const filePath = path.join(dir, filename);
+        fs.writeFileSync(filePath, file.buffer);
+        const url = `/uploads/rounds/${id}/${type}/${filename}`;
+
+        // Save URL to round record
+        if (type === 'rules') {
+            round.rules_file_url = url;
+        } else if (type === 'tz') {
+            round.tz_file_url = url;
+        }
+        await this.roundRepository.save(round);
+
+        return { success: true, url, type };
+    }
+
     private toResponse(round: Round) {
         return {
             id: round.id,
@@ -176,6 +215,9 @@ export class RoundsService {
             deadline_at: round.end_date,
             status: round.status,
             sort_order: round.sort_order,
+            max_teams_pass: round.max_teams_pass,
+            rules_file_url: round.rules_file_url,
+            tz_file_url: round.tz_file_url,
             created_at: round.created_at,
         };
     }

@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException, Query } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import { RoundsService } from './rounds.service';
 import { CreateRoundDto } from './dto/create-round.dto';
@@ -41,5 +43,23 @@ export class RoundsController {
   @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
   remove(@Param('id') id: string, @Req() req: Request) {
     return this.roundsService.remove(+id, req.user as any);
+  }
+
+  @Post('rounds/:id/upload-file')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.ORGANIZER)
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+  }))
+  async uploadFile(
+    @Param('id') id: string,
+    @Query('type') type: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+    const fileType = (['rules', 'tz'].includes(type) ? type : 'misc') as 'rules' | 'tz' | 'misc';
+    return this.roundsService.uploadFile(+id, fileType, file, req.user as any);
   }
 }

@@ -123,6 +123,10 @@ export class CreateTournamentDto {
     created_by_id?: number;
 
     @IsOptional()
+    @IsInt()
+    parent_tournament_id?: number | null;
+
+    @IsOptional()
     @IsArray()
     @IsInt({ each: true })
     jury_ids?: number[];

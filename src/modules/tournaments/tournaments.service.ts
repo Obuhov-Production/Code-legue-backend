@@ -175,6 +175,7 @@ export class TournamentsService implements OnModuleInit {
             elo_winner: dto.elo_winner ?? null,
             status: dto.status ?? TournamentStatus.DRAFT,
             ...(userId ? { created_by: { id: userId } as any, created_by_id: userId } : {}),
+            parent_tournament_id: dto.parent_tournament_id ?? null,
         });
 
         const saved = await this.tournamentRepository.save(tournament);
@@ -184,6 +185,25 @@ export class TournamentsService implements OnModuleInit {
         fs.mkdirSync(path.join(tourDir, 'rules'), { recursive: true });
         fs.mkdirSync(path.join(tourDir, 'tz'), { recursive: true });
         fs.mkdirSync(path.join(tourDir, 'misc'), { recursive: true });
+
+        // If this tournament is a round of another tournament, create a Round record
+        if (dto.parent_tournament_id) {
+            const parent = await this.tournamentRepository.findOne({ where: { id: dto.parent_tournament_id } });
+            if (parent) {
+                const round = this.roundRepository.create({
+                    tournament_id: parent.id,
+                    title: saved.name,
+                    description: saved.description,
+                    tech_requirements: saved.tz,
+                    start_date: saved.start_date,
+                    end_date: saved.end_date,
+                    status: RoundStatus.DRAFT,
+                    sort_order: (parent.rounds?.length ?? 0),
+                });
+                await this.roundRepository.save(round);
+                this.logger.log(`Created round #${round.id} for parent tournament #${parent.id} from child tournament #${saved.id}`);
+            }
+        }
 
         if (dto.jury_ids && dto.jury_ids.length > 0) {
             const juryUsers = await this.userRepository.findBy(dto.jury_ids.map(id => ({ id })));
@@ -411,14 +431,33 @@ export class TournamentsService implements OnModuleInit {
 
     /**
      * Activate the first round of a tournament (by sort_order, then start_date).
-     * Only activates if no round is already active and the first round is in DRAFT status.
+     * If no rounds exist, auto-create a default "Раунд 1" round.
+     * Only activates if no round is already active.
      */
     async activateFirstRound(tournamentId: number) {
-        const rounds = await this.roundRepository.find({
+        let rounds = await this.roundRepository.find({
             where: { tournament_id: tournamentId },
             order: { sort_order: 'ASC', start_date: 'ASC', id: 'ASC' },
         });
-        if (rounds.length === 0) return null;
+
+        // Auto-create default round if none exist
+        if (rounds.length === 0) {
+            const tournament = await this.tournamentRepository.findOne({ where: { id: tournamentId } });
+            if (!tournament) return null;
+            const defaultRound = this.roundRepository.create({
+                tournament_id: tournamentId,
+                title: 'Раунд 1',
+                description: tournament.tz ?? null,
+                tech_requirements: null,
+                start_date: tournament.start_date,
+                end_date: tournament.end_date,
+                status: RoundStatus.ACTIVE,
+                sort_order: 0,
+            });
+            const saved = await this.roundRepository.save(defaultRound);
+            this.logger.log(`Auto-created default round #${saved.id} for tournament #${tournamentId}`);
+            return saved;
+        }
 
         const alreadyActive = rounds.find(r => r.status === RoundStatus.ACTIVE);
         if (alreadyActive) return alreadyActive;
@@ -500,6 +539,9 @@ export class TournamentsService implements OnModuleInit {
             end_date: round.end_date,
             status: round.status,
             sort_order: round.sort_order,
+            max_teams_pass: round.max_teams_pass,
+            rules_file_url: round.rules_file_url,
+            tz_file_url: round.tz_file_url,
         };
     }
 

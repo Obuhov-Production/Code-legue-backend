@@ -63,6 +63,15 @@ export class Round {
     @Column({ type: 'int', default: 0 })
     sort_order: number;
 
+    @Column({ type: 'int', nullable: true })
+    max_teams_pass: number | null;
+
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    rules_file_url: string | null;
+
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    tz_file_url: string | null;
+
     @CreateDateColumn({ type: 'datetime' })
     created_at: Date;
 

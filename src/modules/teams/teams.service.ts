@@ -323,6 +323,10 @@ export class TeamsService {
             tournament_registration_end: team.tournament?.registration_end ?? null,
             tournament_submission_start: team.tournament?.submission_start ?? null,
             tournament_submission_end: team.tournament?.submission_end ?? null,
+            tournament_rules: team.tournament?.rules ?? null,
+            tournament_rules_file_url: team.tournament?.rules_file_url ?? null,
+            tournament_tz: team.tournament?.tz ?? null,
+            tournament_tz_enabled: team.tournament?.tz_enabled ?? false,
             members: (team.members || []).map((m) => {
                 const linked = m.user_id ? usersById.get(m.user_id) : null;
                 return {
