@@ -360,6 +360,15 @@ Backend побудований за принципами:
 
 Проєкт перебуває в активній розробці та постійно розширюється разом із frontend-частиною платформи **Code League**.
 
+## Команда
+
+
+- Назва : Obuhov-Production;
+- Учасники : Abetik, SHK_Igor, Misha;
+- Посилання на frontend-репозиторій: https://github.com/Obuhov-Production/Code__League-Frontend;
+- Посилання на backend-репозиторій: https://github.com/Obuhov-Production/Code-legue-backend;
+
+
 ## License
 
 Проєкт створений для платформи **Code League**.
