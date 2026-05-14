@@ -9,6 +9,8 @@ import { Team } from "../teams/entities/team.entity";
 import { User } from '../users/entities/user.entity';
 import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import { ChatRoomMember } from '../teams/entities/chat-room-member.entity';
+import { Round } from '../rounds/entities/round.entity';
+import { RoundStatus } from '../rounds/enums/RoundStatus';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatGateway } from '../chat-messages/chat.gateway';
 import * as fs from 'fs';
@@ -30,6 +32,8 @@ export class TournamentsService implements OnModuleInit {
         private readonly chatRoomRepository: Repository<ChatRoom>,
         @InjectRepository(ChatRoomMember)
         private readonly chatRoomMemberRepository: Repository<ChatRoomMember>,
+        @InjectRepository(Round)
+        private readonly roundRepository: Repository<Round>,
         private readonly notificationsService: NotificationsService,
         private readonly chatGateway: ChatGateway,
     ) {}
@@ -49,6 +53,10 @@ export class TournamentsService implements OnModuleInit {
             for (const t of regToRun) {
                 await this.tournamentRepository.update({ id: t.id }, { status: TournamentStatus.RUNNING });
                 this.logger.log(`Auto-transition: tournament #${t.id} "${t.name}" → RUNNING`);
+
+                // Auto-activate the first round
+                await this.activateFirstRound(t.id);
+
                 const notifs = await this.notificationsService.notifyAdmins(
                     `Турнір "${t.name}" автоматично переведено в RUNNING`,
                     '🚀',
@@ -290,6 +298,12 @@ export class TournamentsService implements OnModuleInit {
         }
 
         await this.tournamentRepository.update({ id }, { status });
+
+        // When manually transitioning to RUNNING, activate first round
+        if (status === TournamentStatus.RUNNING) {
+            await this.activateFirstRound(id);
+        }
+
         return { success: true, status };
     }
 
@@ -393,6 +407,100 @@ export class TournamentsService implements OnModuleInit {
                 await this.userRepository.save(user);
             }
         }
+    }
+
+    /**
+     * Activate the first round of a tournament (by sort_order, then start_date).
+     * Only activates if no round is already active and the first round is in DRAFT status.
+     */
+    async activateFirstRound(tournamentId: number) {
+        const rounds = await this.roundRepository.find({
+            where: { tournament_id: tournamentId },
+            order: { sort_order: 'ASC', start_date: 'ASC', id: 'ASC' },
+        });
+        if (rounds.length === 0) return null;
+
+        const alreadyActive = rounds.find(r => r.status === RoundStatus.ACTIVE);
+        if (alreadyActive) return alreadyActive;
+
+        const first = rounds[0];
+        if (first.status === RoundStatus.DRAFT) {
+            first.status = RoundStatus.ACTIVE;
+            await this.roundRepository.save(first);
+            this.logger.log(`Auto-activated round #${first.id} "${first.title}" for tournament #${tournamentId}`);
+        }
+        return first;
+    }
+
+    /**
+     * Advance to the next round: close current active round, activate the next one.
+     * Used by organizer panel: - {round} + buttons.
+     * direction: 1 = next, -1 = previous (re-activate)
+     */
+    async advanceRound(tournamentId: number, direction: number, user: { userId?: number; role?: string }) {
+        await this.assertCanEdit(tournamentId, user);
+
+        const rounds = await this.roundRepository.find({
+            where: { tournament_id: tournamentId },
+            order: { sort_order: 'ASC', start_date: 'ASC', id: 'ASC' },
+        });
+        if (rounds.length === 0) {
+            throw new BadRequestException('No rounds exist for this tournament');
+        }
+
+        const activeIdx = rounds.findIndex(r => r.status === RoundStatus.ACTIVE);
+
+        if (direction > 0) {
+            // Next round
+            if (activeIdx >= 0) {
+                rounds[activeIdx].status = RoundStatus.SUBMISSION_CLOSED;
+                await this.roundRepository.save(rounds[activeIdx]);
+            }
+            const nextIdx = activeIdx < 0 ? 0 : activeIdx + 1;
+            if (nextIdx >= rounds.length) {
+                throw new BadRequestException('No more rounds to advance to');
+            }
+            rounds[nextIdx].status = RoundStatus.ACTIVE;
+            await this.roundRepository.save(rounds[nextIdx]);
+            return { success: true, active_round: this.roundToResponse(rounds[nextIdx]), index: nextIdx, total: rounds.length };
+        } else {
+            // Previous round (re-activate)
+            if (activeIdx >= 0) {
+                rounds[activeIdx].status = RoundStatus.DRAFT;
+                await this.roundRepository.save(rounds[activeIdx]);
+            }
+            const prevIdx = activeIdx <= 0 ? 0 : activeIdx - 1;
+            rounds[prevIdx].status = RoundStatus.ACTIVE;
+            await this.roundRepository.save(rounds[prevIdx]);
+            return { success: true, active_round: this.roundToResponse(rounds[prevIdx]), index: prevIdx, total: rounds.length };
+        }
+    }
+
+    /**
+     * Get the current active round for a tournament.
+     */
+    async getActiveRound(tournamentId: number) {
+        const round = await this.roundRepository.findOne({
+            where: { tournament_id: tournamentId, status: RoundStatus.ACTIVE },
+        });
+        if (!round) return null;
+        return this.roundToResponse(round);
+    }
+
+    private roundToResponse(round: Round) {
+        return {
+            id: round.id,
+            tournament_id: round.tournament_id,
+            title: round.title,
+            description: round.description,
+            tech_requirements: round.tech_requirements,
+            must_have_items: round.must_have_items ?? [],
+            materials: round.materials ?? [],
+            start_date: round.start_date,
+            end_date: round.end_date,
+            status: round.status,
+            sort_order: round.sort_order,
+        };
     }
 
     async getAssignedJury(tournamentId: number) {

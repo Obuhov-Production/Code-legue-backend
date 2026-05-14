@@ -82,6 +82,21 @@ export class TournamentsController {
         return this.tournamentsService.updateStatus(Number(id), status, req.user as any);
     }
 
+    @Get(':id/active-round')
+    getActiveRound(@Param('id') id: string) {
+        return this.tournamentsService.getActiveRound(Number(id));
+    }
+
+    @Post(':id/advance-round')
+    @UseGuards(JwtAuthGuard)
+    advanceRound(
+        @Param('id') id: string,
+        @Body('direction') direction: number,
+        @Req() req: Request,
+    ) {
+        return this.tournamentsService.advanceRound(Number(id), direction ?? 1, req.user as any);
+    }
+
     @Post(':id/upload-file')
     @UseGuards(JwtAuthGuard)
     @UseInterceptors(FileInterceptor('file', {
