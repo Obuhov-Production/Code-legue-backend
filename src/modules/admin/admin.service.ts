@@ -243,10 +243,40 @@ export class AdminService {
     }
 
     async getTeams() {
-        return this.teamRepo.find({
+        const teams = await this.teamRepo.find({
             relations: {
                 tournament: true,
+                captain: true,
+                members: true,
             },
+            order: { id: 'DESC' },
+        });
+
+        return teams.map((team) => {
+            const acceptedMembers = (team.members || []).filter((member) => member.status !== 'rejected');
+            const captainMember = (team.members || []).find((member) => member.user_id === team.captain_id);
+            return {
+                id: team.id,
+                name: team.name,
+                tournament_id: team.tournament_id,
+                tournament_name: team.tournament?.name ?? null,
+                tournament_status: team.tournament?.status ?? null,
+                captain_id: team.captain_id,
+                captain_name: team.captain?.username ?? captainMember?.fullName ?? null,
+                captain_email: team.captain?.email ?? captainMember?.email ?? team.leader_email ?? null,
+                members_count: acceptedMembers.length,
+                pending_members_count: (team.members || []).filter((member) => member.status === 'pending').length,
+                city: team.city,
+                school: team.school,
+                created_at: team.created_at,
+                members: (team.members || []).map((member) => ({
+                    id: member.id,
+                    full_name: member.fullName,
+                    email: member.email,
+                    user_id: member.user_id,
+                    status: member.status,
+                })),
+            };
         });
     }
 

@@ -126,6 +126,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
     }
 
+    private async canAccessRoom(client: AuthSocket, room: string): Promise<boolean> {
+        if (!room?.startsWith('team_')) return true;
+        if (client.role?.includes('admin')) return true;
+        if (!client.userId) return false;
+
+        const membership = await this.chatRoomMemberRepo.findOne({
+            where: { room, user_id: client.userId },
+        });
+
+        return !!membership;
+    }
     @SubscribeMessage('room:join')
     async handleJoinRoom(
         @ConnectedSocket() client: AuthSocket,
@@ -133,17 +144,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     ) {
         const { room } = data;
 
-        if (room.startsWith('team_')) {
-            const isAdmin = client.role?.includes('admin');
-            if (!isAdmin) {
-                const membership = await this.chatRoomMemberRepo.findOne({
-                    where: { room, user_id: client.userId },
-                });
-                if (!membership) {
-                    client.emit('error', { message: 'Доступ заборонено' });
-                    return;
-                }
-            }
+        if (!(await this.canAccessRoom(client, room))) {
+            client.emit('error', { message: 'Forbidden' });
+            return;
         }
 
         await client.join(room);
@@ -181,6 +184,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         if (!data.text?.trim() && !data.file_url) return;
 
+        if (!(await this.canAccessRoom(client, data.room))) {
+            client.emit('error', { message: 'Forbidden' });
+            return;
+        }
+
         if (!client.rooms.has(data.room)) {
             await client.join(data.room);
         }
@@ -203,6 +211,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: { room: string },
     ) {
         if (!client.userId || !data?.room) return;
+        if (!(await this.canAccessRoom(client, data.room))) return;
         const ids = await this.chatMessagesService.markRoomAsRead(data.room, client.userId);
         if (ids.length === 0) return;
         // Tell everyone in the room (mainly the original senders) which messages were read.
@@ -214,10 +223,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     @SubscribeMessage('message:typing')
-    handleTyping(
+    async handleTyping(
         @ConnectedSocket() client: AuthSocket,
         @MessageBody() data: { room: string; isTyping: boolean },
     ) {
+        if (!(await this.canAccessRoom(client, data.room))) return;
         client.to(data.room).emit('user:typing', {
             userId: client.userId,
             username: client.username,
