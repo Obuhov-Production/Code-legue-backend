@@ -11,8 +11,9 @@ export class CreateSubmissionDto {
     @IsString()
     github_branch?: string;
 
+    @IsOptional()
     @IsString()
-    pitch_video_url: string;
+    pitch_video_url?: string;
 
     @IsOptional()
     @IsString()

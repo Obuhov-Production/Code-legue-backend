@@ -106,6 +106,7 @@ export class TournamentsService implements OnModuleInit {
             relations: {
                 created_by: true,
                 teams: true,
+                jury_members: true,
             },
             order: {
                 created_at: 'DESC',
@@ -126,6 +127,7 @@ export class TournamentsService implements OnModuleInit {
             relations: {
                 created_by: true,
                 teams: true,
+                jury_members: true,
             },
         });
 
