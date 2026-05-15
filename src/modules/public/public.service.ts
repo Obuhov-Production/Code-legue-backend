@@ -78,10 +78,7 @@ export class PublicService {
       for (const submission of team.submissions ?? []) {
         for (const evaluation of submission.evaluations ?? []) {
           totalScore += Number(evaluation.total_score || 0);
-          const criteria = (evaluation.criteria || {}) as Record<string, number>;
-          for (const [key, value] of Object.entries(criteria)) {
-            criteriaBreakdown[key] = (criteriaBreakdown[key] ?? 0) + Number(value || 0);
-          }
+          this.addCriteriaBreakdown(criteriaBreakdown, evaluation.criteria);
         }
       }
 
@@ -100,5 +97,53 @@ export class PublicService {
       rank: index + 1,
       ...row,
     }));
+  }
+
+  private addCriteriaBreakdown(target: Record<string, number>, rawCriteria: unknown) {
+    for (const item of this.normalizeCriteria(rawCriteria)) {
+      target[item.label] = (target[item.label] ?? 0) + item.score;
+    }
+  }
+
+  private normalizeCriteria(rawCriteria: unknown): Array<{ label: string; score: number }> {
+    if (!rawCriteria) return [];
+
+    let criteria = rawCriteria;
+    if (typeof criteria === 'string') {
+      try {
+        criteria = JSON.parse(criteria);
+      } catch {
+        return [];
+      }
+    }
+
+    if (Array.isArray(criteria)) {
+      return criteria
+        .map((item, index) => this.normalizeCriterionItem(String(index), item))
+        .filter((item): item is { label: string; score: number } => item !== null);
+    }
+
+    if (typeof criteria === 'object') {
+      return Object.entries(criteria as Record<string, unknown>)
+        .map(([key, value]) => this.normalizeCriterionItem(key, value))
+        .filter((item): item is { label: string; score: number } => item !== null);
+    }
+
+    return [];
+  }
+
+  private normalizeCriterionItem(key: string, value: unknown): { label: string; score: number } | null {
+    if (value && typeof value === 'object') {
+      const item = value as Record<string, unknown>;
+      const rawScore = item.score ?? item.value ?? item.total ?? 0;
+      const score = Number(rawScore);
+      if (!Number.isFinite(score)) return null;
+      const label = String(item.label ?? item.key ?? key).trim();
+      return { label: label || key, score };
+    }
+
+    const score = Number(value);
+    if (!Number.isFinite(score)) return null;
+    return { label: key, score };
   }
 }

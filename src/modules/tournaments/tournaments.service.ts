@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { CreateTournamentDto } from './dto/create-tournament.dto';
 import { InjectRepository } from "@nestjs/typeorm";
 import { Tournament } from "./entities/tournament.entity";
-import { LessThanOrEqual, Repository } from "typeorm";
+import { In, LessThanOrEqual, Repository } from "typeorm";
 import { TournamentStatus, STATUS_TRANSITIONS } from "./enums/TournamentStatus.enum";
 import { UpdateTournamentDto } from "./dto/update-tournament.dto";
 import { Team } from "../teams/entities/team.entity";
@@ -208,7 +208,9 @@ export class TournamentsService implements OnModuleInit {
         }
 
         if (dto.jury_ids && dto.jury_ids.length > 0) {
-            const juryUsers = await this.userRepository.findBy(dto.jury_ids.map(id => ({ id })));
+            const juryIds = this.normalizeJuryIds(dto.jury_ids);
+            const juryUsers = await this.userRepository.findBy({ id: In(juryIds) });
+            this.assertAllJuryUsersFound(juryIds, juryUsers);
             saved.jury_members = juryUsers;
             await this.tournamentRepository.save(saved);
             await this.ensureJuryRole(juryUsers);
@@ -247,7 +249,7 @@ export class TournamentsService implements OnModuleInit {
     }
 
     async update(id: number, dto: UpdateTournamentDto, user: { userId?: number; role?: string }) {
-        await this.assertCanEdit(id, user);
+        const currentTournament = await this.assertCanEdit(id, user);
 
         const payload: any = { ...dto };
         if (dto.start_date) payload.start_date = new Date(dto.start_date);
@@ -256,7 +258,9 @@ export class TournamentsService implements OnModuleInit {
         if (dto.registration_end) payload.registration_end = new Date(dto.registration_end);
         if (dto.submission_start !== undefined) payload.submission_start = dto.submission_start ? new Date(dto.submission_start) : null;
         if (dto.submission_end !== undefined) payload.submission_end = dto.submission_end ? new Date(dto.submission_end) : null;
-        const juryIds: number[] | undefined = payload.jury_ids;
+        const juryIds: number[] | undefined = Array.isArray(payload.jury_ids)
+            ? this.normalizeJuryIds(payload.jury_ids)
+            : undefined;
         delete payload.jury_ids;
 
         const result = await this.tournamentRepository.update({ id }, payload);
@@ -265,12 +269,17 @@ export class TournamentsService implements OnModuleInit {
             throw new NotFoundException('Tournament not found');
         }
 
+        await this.syncRoundsAfterTournamentUpdate(currentTournament, payload);
+
         // Sync jury members when jury_ids is provided in update
         if (Array.isArray(juryIds)) {
             const tournament = await this.tournamentRepository.findOne({ where: { id }, relations: { jury_members: true } });
             if (tournament) {
                 const previousJury = tournament.jury_members ?? [];
-                const newJuryUsers = await this.userRepository.findBy(juryIds.map(uid => ({ id: uid })));
+                const newJuryUsers = juryIds.length > 0
+                    ? await this.userRepository.findBy({ id: In(juryIds) })
+                    : [];
+                this.assertAllJuryUsersFound(juryIds, newJuryUsers);
                 tournament.jury_members = newJuryUsers;
                 await this.tournamentRepository.save(tournament);
 
@@ -364,10 +373,7 @@ export class TournamentsService implements OnModuleInit {
             for (const submission of t.submissions ?? []) {
                 for (const evaluation of submission.evaluations ?? []) {
                     totalScore += Number(evaluation.total_score || 0);
-                    const criteria = (evaluation.criteria || {}) as Record<string, number>;
-                    for (const [key, value] of Object.entries(criteria)) {
-                        criteriaBreakdown[key] = (criteriaBreakdown[key] ?? 0) + Number(value || 0);
-                    }
+                    this.addCriteriaBreakdown(criteriaBreakdown, evaluation.criteria);
                 }
             }
 
@@ -387,6 +393,121 @@ export class TournamentsService implements OnModuleInit {
             rank: index + 1,
             ...item,
         }));
+    }
+
+    private normalizeJuryIds(value: unknown): number[] {
+        if (!Array.isArray(value)) {
+            throw new BadRequestException('jury_ids must be an array');
+        }
+
+        const normalized = value.map((id) => Number(id));
+        const hasInvalid = normalized.some((id) => !Number.isInteger(id) || id <= 0);
+        if (hasInvalid) {
+            throw new BadRequestException('jury_ids contains invalid user id');
+        }
+
+        return Array.from(new Set(normalized));
+    }
+
+    private assertAllJuryUsersFound(juryIds: number[], users: User[]) {
+        if (users.length !== juryIds.length) {
+            throw new BadRequestException('One or more jury users were not found');
+        }
+    }
+
+    private async syncRoundsAfterTournamentUpdate(previous: Tournament, payload: any) {
+        const hasRoundFieldChange = [
+            'name',
+            'description',
+            'tz',
+            'start_date',
+            'end_date',
+        ].some((key) => Object.prototype.hasOwnProperty.call(payload, key));
+
+        if (!hasRoundFieldChange) return;
+
+        const roundPatch: Partial<Round> = {};
+        if (Object.prototype.hasOwnProperty.call(payload, 'name')) roundPatch.title = payload.name;
+        if (Object.prototype.hasOwnProperty.call(payload, 'description')) roundPatch.description = payload.description ?? null;
+        if (Object.prototype.hasOwnProperty.call(payload, 'tz')) roundPatch.tech_requirements = payload.tz ?? null;
+        if (Object.prototype.hasOwnProperty.call(payload, 'start_date')) roundPatch.start_date = payload.start_date;
+        if (Object.prototype.hasOwnProperty.call(payload, 'end_date')) roundPatch.end_date = payload.end_date;
+
+        if (Object.keys(roundPatch).length === 0) return;
+
+        if (previous.parent_tournament_id) {
+            await this.roundRepository.update(
+                { tournament_id: previous.parent_tournament_id, title: previous.name },
+                roundPatch,
+            );
+            return;
+        }
+
+        const rounds = await this.roundRepository.find({
+            where: { tournament_id: previous.id },
+            order: { sort_order: 'ASC', start_date: 'ASC', id: 'ASC' },
+        });
+
+        if (rounds.length !== 1) return;
+
+        const [round] = rounds;
+        const isDefaultRound = round.sort_order === 0 && (
+            round.title === 'Round 1' ||
+            round.title === 'Раунд 1' ||
+            (previous.tz != null && round.description === previous.tz)
+        );
+
+        if (isDefaultRound) {
+            await this.roundRepository.update({ id: round.id }, roundPatch);
+        }
+    }
+
+    private addCriteriaBreakdown(target: Record<string, number>, rawCriteria: unknown) {
+        for (const item of this.normalizeCriteria(rawCriteria)) {
+            target[item.label] = (target[item.label] ?? 0) + item.score;
+        }
+    }
+
+    private normalizeCriteria(rawCriteria: unknown): Array<{ label: string; score: number }> {
+        if (!rawCriteria) return [];
+
+        let criteria = rawCriteria;
+        if (typeof criteria === 'string') {
+            try {
+                criteria = JSON.parse(criteria);
+            } catch {
+                return [];
+            }
+        }
+
+        if (Array.isArray(criteria)) {
+            return criteria
+                .map((item, index) => this.normalizeCriterionItem(String(index), item))
+                .filter((item): item is { label: string; score: number } => item !== null);
+        }
+
+        if (typeof criteria === 'object') {
+            return Object.entries(criteria as Record<string, unknown>)
+                .map(([key, value]) => this.normalizeCriterionItem(key, value))
+                .filter((item): item is { label: string; score: number } => item !== null);
+        }
+
+        return [];
+    }
+
+    private normalizeCriterionItem(key: string, value: unknown): { label: string; score: number } | null {
+        if (value && typeof value === 'object') {
+            const item = value as Record<string, unknown>;
+            const rawScore = item.score ?? item.value ?? item.total ?? 0;
+            const score = Number(rawScore);
+            if (!Number.isFinite(score)) return null;
+            const label = String(item.label ?? item.key ?? key).trim();
+            return { label: label || key, score };
+        }
+
+        const score = Number(value);
+        if (!Number.isFinite(score)) return null;
+        return { label: key, score };
     }
 
     async delete(id: number, user: { userId?: number; role?: string }) {
