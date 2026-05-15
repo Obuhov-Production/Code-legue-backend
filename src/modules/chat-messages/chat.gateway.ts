@@ -243,8 +243,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (!client.userId) return;
         const isAdmin = client.role === 'admin';
         try {
+            const room = await this.chatMessagesService.findRoomByMessageId(data.messageId);
+            if (!room || !(await this.canAccessRoom(client, room))) {
+                client.emit('error', { message: 'Forbidden' });
+                return;
+            }
             await this.chatMessagesService.deleteMessage(data.messageId, client.userId, isAdmin);
-            this.server.to(data.room).emit('message:deleted', { messageId: data.messageId });
+            this.server.to(room).emit('message:deleted', { messageId: data.messageId });
         } catch (e) {
             client.emit('error', { message: e.message });
         }
@@ -258,8 +263,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (!client.userId) return;
         if (!data.newText?.trim()) return;
         try {
+            const room = await this.chatMessagesService.findRoomByMessageId(data.messageId);
+            if (!room || !(await this.canAccessRoom(client, room))) {
+                client.emit('error', { message: 'Forbidden' });
+                return;
+            }
             const updated = await this.chatMessagesService.editMessage(data.messageId, client.userId, data.newText.trim());
-            this.server.to(data.room).emit('message:edited', {
+            this.server.to(room).emit('message:edited', {
                 messageId: data.messageId,
                 newText: updated.text,
                 edited_at: updated.edited_at,
@@ -275,13 +285,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: { room: string; messageId: number; emoji: string },
     ) {
         if (!client.userId) return;
+        const room = await this.chatMessagesService.findRoomByMessageId(data.messageId);
+        if (!room || !(await this.canAccessRoom(client, room))) {
+            client.emit('error', { message: 'Forbidden' });
+            return;
+        }
         const result = await this.chatReactionsService.toggle(
             data.messageId,
             client.userId,
             client.username!,
             data.emoji,
         );
-        this.server.to(data.room).emit('reaction:update', {
+        this.server.to(room).emit('reaction:update', {
             messageId: data.messageId,
             emoji: data.emoji,
             count: result.count,
@@ -329,13 +344,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: { room?: string; messageId: number },
     ) {
         if (!client.userId) return;
-        let room = data.room;
-        if (!room) {
-            const msg = await this.chatMessagesService['messageRepo'].findOne({ where: { id: data.messageId } });
-            room = msg?.room;
-        }
+        const room = await this.chatMessagesService.findRoomByMessageId(data.messageId) ?? data.room;
         if (!room) {
             client.emit('error', { message: 'Room not found for pin' });
+            return;
+        }
+        if (!(await this.canAccessRoom(client, room))) {
+            client.emit('error', { message: 'Forbidden' });
             return;
         }
         await this.chatPinnedService.pin(room, data.messageId, client.userId);
@@ -352,13 +367,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: { room?: string; messageId: number },
     ) {
         if (!client.userId) return;
-        let room = data.room;
-        if (!room) {
-            const msg = await this.chatMessagesService['messageRepo'].findOne({ where: { id: data.messageId } });
-            room = msg?.room;
-        }
+        const room = await this.chatMessagesService.findRoomByMessageId(data.messageId) ?? data.room;
         if (!room) {
             client.emit('error', { message: 'Room not found for unpin' });
+            return;
+        }
+        if (!(await this.canAccessRoom(client, room))) {
+            client.emit('error', { message: 'Forbidden' });
             return;
         }
         await this.chatPinnedService.unpin(room, data.messageId);

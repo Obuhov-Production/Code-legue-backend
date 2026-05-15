@@ -11,6 +11,7 @@ import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import * as bcrypt from 'bcrypt';
 import { BulkUserAction, BulkUserActionDto } from './dto/bulk-user-action.dto';
 import { SearchUsersDto } from './dto/search-users.dto';
+import { ChatGateway } from '../chat-messages/chat.gateway';
 
 @Injectable()
 export class AdminService {
@@ -22,6 +23,7 @@ export class AdminService {
         @InjectRepository(ChatRoomSettings) private readonly chatSettingsRepo: Repository<ChatRoomSettings>,
         @InjectRepository(Message) private readonly messageRepo: Repository<Message>,
         @InjectRepository(ChatRoom) private readonly chatRoomRepo: Repository<ChatRoom>,
+        private readonly chatGateway: ChatGateway,
     ) {}
 
     async getStats() {
@@ -160,8 +162,15 @@ export class AdminService {
     async updateUser(id: number, data: { role?: string; is_chat_muted?: boolean; status?: string }) {
         const user = await this.userRepo.findOne({ where: { id } });
         if (!user) throw new NotFoundException('User not found');
+        const prevRole = user.role;
         Object.assign(user, data);
         const saved = await this.userRepo.save(user);
+        if (data.role !== undefined && data.role !== prevRole) {
+            this.chatGateway.sendToUser(id, 'user:updated', {
+                reason: 'role_changed',
+                role: saved.role,
+            });
+        }
         return this.toAdminUser(saved);
     }
 

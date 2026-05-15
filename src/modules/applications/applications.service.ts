@@ -134,6 +134,10 @@ export class ApplicationsService {
                     roles.push(UserRole.ORGANIZER);
                     user.role = roles.join(',');
                     await this.userRepo.save(user);
+                    this.chatGateway.sendToUser(application.userId, 'user:updated', {
+                        reason: 'role_changed',
+                        role: user.role,
+                    });
                 }
             }
         }

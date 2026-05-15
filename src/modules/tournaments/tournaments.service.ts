@@ -56,6 +56,7 @@ export class TournamentsService implements OnModuleInit {
 
                 // Auto-activate the first round
                 await this.activateFirstRound(t.id);
+                await this.emitTournamentUpdated(t.id, TournamentStatus.RUNNING, 'auto_status_changed');
 
                 const notifs = await this.notificationsService.notifyAdmins(
                     `Турнір "${t.name}" автоматично переведено в RUNNING`,
@@ -83,6 +84,7 @@ export class TournamentsService implements OnModuleInit {
                 if (teams.length > 0) {
                     this.logger.log(`Deleted ${teams.length} team chat room(s) for tournament #${t.id}`);
                 }
+                await this.emitTournamentUpdated(t.id, TournamentStatus.FINISHED, 'auto_status_changed');
 
                 const notifs = await this.notificationsService.notifyAdmins(
                     `Турнір "${t.name}" автоматично завершено (FINISHED)`,
@@ -354,6 +356,8 @@ export class TournamentsService implements OnModuleInit {
             await this.activateFirstRound(id);
         }
 
+        await this.emitTournamentUpdated(id, status, 'status_changed');
+
         return { success: true, status };
     }
 
@@ -413,6 +417,33 @@ export class TournamentsService implements OnModuleInit {
         if (users.length !== juryIds.length) {
             throw new BadRequestException('One or more jury users were not found');
         }
+    }
+
+    private async emitTournamentUpdated(tournamentId: number, status: TournamentStatus, reason = 'status_changed') {
+        const teams = await this.teamRepository.find({
+            where: { tournament_id: tournamentId },
+            relations: { members: true },
+        });
+        const userIds = new Set<number>();
+
+        for (const team of teams) {
+            if (team.captain_id) userIds.add(team.captain_id);
+            for (const member of team.members ?? []) {
+                if (member.status !== 'accepted') continue;
+                if (member.user_id) userIds.add(member.user_id);
+            }
+        }
+
+        userIds.forEach((userId) => {
+            try {
+                this.chatGateway.sendToUser(userId, 'tournament:updated', {
+                    reason,
+                    tournamentId,
+                    tournament_id: tournamentId,
+                    status,
+                });
+            } catch {}
+        });
     }
 
     private async syncRoundsAfterTournamentUpdate(previous: Tournament, payload: any) {

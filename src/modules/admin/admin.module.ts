@@ -10,11 +10,13 @@ import { ChatRoomSettings } from '../chat-room-settings/entities/chat-room-setti
 import { Message } from '../chat-messages/entities/chat-message.entity';
 import { ChatRoom } from '../chat-room/entities/chat-room.entity';
 import { AuthModule } from '../auth/auth.module';
+import { ChatMessagesModule } from '../chat-messages/chat-messages.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([User, Tournament, Team, Submission, ChatRoomSettings, Message, ChatRoom]),
         AuthModule,
+        ChatMessagesModule,
     ],
     controllers: [AdminController],
     providers: [AdminService],

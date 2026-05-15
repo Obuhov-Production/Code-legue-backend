@@ -80,6 +80,14 @@ export class ChatMessagesService {
         return this.formatMessage(full);
     }
 
+    async findRoomByMessageId(messageId: number): Promise<string | null> {
+        const msg = await this.messageRepo.findOne({
+            where: { id: messageId },
+            select: ['id', 'room'],
+        });
+        return msg?.room ?? null;
+    }
+
     async clearRoom(room: string) {
         await this.messageRepo.delete({ room });
         return { success: true };
@@ -112,6 +120,7 @@ export class ChatMessagesService {
         });
         return rooms
             .filter((r) => r.name !== 'general')
+            .filter((r) => !r.name.startsWith('team_'))
             .map((r) => ({
                 id: r.id,
                 name: r.name,
