@@ -38,6 +38,88 @@ export class TournamentsService implements OnModuleInit {
         private readonly chatGateway: ChatGateway,
     ) {}
 
+    private parseTournamentDate(value: string | Date | null | undefined, label: string, required = true): Date | null {
+        if (value === null || value === undefined || value === '') {
+            if (required) throw new BadRequestException(`${label} is required`);
+            return null;
+        }
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            throw new BadRequestException(`${label} must be a valid date`);
+        }
+        return date;
+    }
+
+    private assertFutureDate(date: Date, label: string) {
+        if (date.getTime() < Date.now() - 60_000) {
+            throw new BadRequestException(`${label} cannot be in the past`);
+        }
+    }
+
+    private validateTournamentSchedule(values: {
+        start_date: string | Date;
+        end_date: string | Date;
+        registration_start: string | Date;
+        registration_end: string | Date;
+        submission_start?: string | Date | null;
+        submission_end?: string | Date | null;
+        min_team_size?: number | null;
+        max_team_size?: number | null;
+    }, options: { requireFutureDates?: boolean } = {}) {
+        const regStart = this.parseTournamentDate(values.registration_start, 'Registration start')!;
+        const regEnd = this.parseTournamentDate(values.registration_end, 'Registration end')!;
+        const start = this.parseTournamentDate(values.start_date, 'Tournament start')!;
+        const end = this.parseTournamentDate(values.end_date, 'Tournament end')!;
+        const subStart = this.parseTournamentDate(values.submission_start, 'Submission start', false);
+        const subEnd = this.parseTournamentDate(values.submission_end, 'Submission end', false);
+
+        if (options.requireFutureDates) {
+            this.assertFutureDate(regStart, 'Registration start');
+            this.assertFutureDate(regEnd, 'Registration end');
+            this.assertFutureDate(start, 'Tournament start');
+            this.assertFutureDate(end, 'Tournament end');
+            if (subStart) this.assertFutureDate(subStart, 'Submission start');
+            if (subEnd) this.assertFutureDate(subEnd, 'Submission end');
+        }
+
+        if (regEnd.getTime() <= regStart.getTime()) {
+            throw new BadRequestException('Registration end must be after registration start');
+        }
+        if (start.getTime() < regEnd.getTime()) {
+            throw new BadRequestException('Tournament start cannot be before registration end');
+        }
+        if (end.getTime() <= start.getTime()) {
+            throw new BadRequestException('Tournament end must be after tournament start');
+        }
+        if (subStart && subStart.getTime() < start.getTime()) {
+            throw new BadRequestException('Submission start cannot be before tournament start');
+        }
+        if (subStart && subStart.getTime() >= end.getTime()) {
+            throw new BadRequestException('Submission start must be before tournament end');
+        }
+        if (subEnd && subEnd.getTime() <= start.getTime()) {
+            throw new BadRequestException('Submission end must be after tournament start');
+        }
+        if (subEnd && subEnd.getTime() > end.getTime()) {
+            throw new BadRequestException('Submission end cannot be after tournament end');
+        }
+        if (subStart && subEnd && subEnd.getTime() <= subStart.getTime()) {
+            throw new BadRequestException('Submission end must be after submission start');
+        }
+
+        const minTeamSize = Number(values.min_team_size ?? 2);
+        const maxTeamSize = Number(values.max_team_size ?? 5);
+        if (!Number.isFinite(minTeamSize) || minTeamSize < 1) {
+            throw new BadRequestException('Minimum team size must be at least 1');
+        }
+        if (!Number.isFinite(maxTeamSize) || maxTeamSize < 1) {
+            throw new BadRequestException('Maximum team size must be at least 1');
+        }
+        if (minTeamSize > maxTeamSize) {
+            throw new BadRequestException('Minimum team size cannot be greater than maximum team size');
+        }
+    }
+
     onModuleInit() {
         this.autoTransitionStatuses();
         setInterval(() => this.autoTransitionStatuses(), 5 * 60 * 1000);
@@ -151,6 +233,8 @@ export class TournamentsService implements OnModuleInit {
     }
 
     async create(dto: CreateTournamentDto, userId?: number) {
+        this.validateTournamentSchedule(dto, { requireFutureDates: true });
+
         const tournament = this.tournamentRepository.create({
             name: dto.name,
             description: dto.description ?? null,
@@ -252,6 +336,17 @@ export class TournamentsService implements OnModuleInit {
 
     async update(id: number, dto: UpdateTournamentDto, user: { userId?: number; role?: string }) {
         const currentTournament = await this.assertCanEdit(id, user);
+
+        this.validateTournamentSchedule({
+            start_date: dto.start_date ?? currentTournament.start_date,
+            end_date: dto.end_date ?? currentTournament.end_date,
+            registration_start: dto.registration_start ?? currentTournament.registration_start,
+            registration_end: dto.registration_end ?? currentTournament.registration_end,
+            submission_start: dto.submission_start !== undefined ? dto.submission_start : currentTournament.submission_start,
+            submission_end: dto.submission_end !== undefined ? dto.submission_end : currentTournament.submission_end,
+            min_team_size: dto.min_team_size ?? currentTournament.min_team_size,
+            max_team_size: dto.max_team_size ?? currentTournament.max_team_size,
+        });
 
         const payload: any = { ...dto };
         if (dto.start_date) payload.start_date = new Date(dto.start_date);

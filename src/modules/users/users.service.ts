@@ -311,8 +311,20 @@ export class UsersService {
                 'user.last_seen_at',
                 'user.elo',
             ])
-            .where('user.username LIKE :query', { query: `%${query}%` })
+            .where(
+                `(
+                    user.username LIKE :query
+                    OR user.email LIKE :query
+                    OR user.first_name LIKE :query
+                    OR user.last_name LIKE :query
+                    OR user.middle_name LIKE :query
+                    OR CONCAT_WS(' ', user.last_name, user.first_name, user.middle_name) LIKE :query
+                    OR CONCAT_WS(' ', user.first_name, user.last_name) LIKE :query
+                )`,
+                { query: `%${query}%` },
+            )
             .andWhere('user.role != :banned', { banned: 'banned' })
+            .orderBy('user.username', 'ASC')
             .limit(20)
             .getMany();
 
@@ -323,8 +335,10 @@ export class UsersService {
             first_name: user.first_name,
             last_name: user.last_name,
             role: user.role,
+            middle_name: user.middle_name,
             user_description: user.user_description,
             user_avatar_url: user.user_avatar_url,
+            avatar_url: user.user_avatar_url,
             banner_color: user.banner_color,
             banner_url: user.banner_url,
             created_at: user.created_at,

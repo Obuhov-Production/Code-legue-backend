@@ -270,7 +270,14 @@ export class AuthService {
             if (githubToken) { user.github_token = githubToken; changed = true; }
             if (githubId) { user.github_connected = true; user.auth_provider = 'github'; changed = true; }
             if (googleId) { user.auth_provider = 'google'; changed = true; }
-            if (avatarUrl) { user.user_avatar_url = avatarUrl; changed = true; }
+            const hasCustomAvatar = !!user.user_avatar_url && (
+                user.user_avatar_url.startsWith('/uploads/') ||
+                user.user_avatar_url.includes('/uploads/avatars/')
+            );
+            if (avatarUrl && !hasCustomAvatar && !user.user_avatar_url) {
+                user.user_avatar_url = avatarUrl;
+                changed = true;
+            }
             if (changed) {
                 await this.authRepository.save(user);
             }
