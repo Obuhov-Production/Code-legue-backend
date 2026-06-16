@@ -197,9 +197,9 @@ cp .env.example .env
 
 ```env
 # Application
-PORT=3001
+PORT=4001
 NODE_ENV=development
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:4000
 
 # Database
 DB_HOST=localhost
@@ -217,17 +217,17 @@ JWT_REFRESH_EXPIRES=7d
 # Google OAuth
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+GOOGLE_CALLBACK_URL=http://localhost:4001/auth/google/callback
 
 # GitHub OAuth
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
-GITHUB_CALLBACK_URL=http://localhost:3001/auth/github/callback
+GITHUB_CALLBACK_URL=http://localhost:4001/auth/github/callback
 
 # Discord OAuth
 DISCORD_CLIENT_ID=your_discord_client_id
 DISCORD_CLIENT_SECRET=your_discord_client_secret
-DISCORD_CALLBACK_URL=http://localhost:3001/auth/discord/callback
+DISCORD_CALLBACK_URL=http://localhost:4001/auth/discord/callback
 
 # Mail
 MAIL_HOST=smtp.gmail.com
@@ -296,7 +296,7 @@ npm run dev
 Backend буде доступний за адресою:
 
 ```text
-http://localhost:3001
+http://localhost:4001
 ```
 
 ## Інтеграція з frontend
@@ -306,7 +306,7 @@ Backend працює разом із frontend-частиною **Code League**.
 За замовчуванням frontend очікує API:
 
 ```text
-http://localhost:3001
+http://localhost:4001
 ```
 
 Backend підтримує:

@@ -30,7 +30,7 @@ interface AuthSocket extends Socket {
 
 @WebSocketGateway({
     cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: process.env.FRONTEND_URL || 'http://localhost:4000',
         credentials: true,
     },
     namespace: '/chat',

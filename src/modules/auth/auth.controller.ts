@@ -133,7 +133,7 @@ export class AuthController {
      */
     private handleOAuthRedirect(req: Request, res: Response) {
         const result = req.user as any;
-        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4000';
 
         if (result?.requiresVerification) {
             const params = new URLSearchParams({
